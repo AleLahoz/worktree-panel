@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import type { AppContext } from "../app.js";
+import type { AppContext } from "../context.js";
 import { loadConfig, saveConfig } from "../config.js";
 
 function tryRun(file: string, args: string[]): Promise<string | null> {

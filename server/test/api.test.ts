@@ -3,17 +3,21 @@ import { rm } from "node:fs/promises";
 import type { FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
+import { createContext } from "../src/context.js";
 import { createFixture, type Fixture } from "./fixture.js";
 
 const PORT = 4317;
 let fx: Fixture;
 let app: FastifyInstance;
+let ctx: ReturnType<typeof createContext>;
 
 beforeEach(() => {
   fx = createFixture();
-  app = buildApp({ port: PORT, dataDir: fx.dataDir, store: fx.store, service: fx.service });
+  ctx = createContext(fx.dataDir, PORT);
+  app = buildApp(ctx);
 });
 afterEach(async () => {
+  await ctx.ptys.killAll();
   await app.close();
   await fx.cleanup();
 });
@@ -23,7 +27,7 @@ const call = (method: "GET" | "POST" | "PATCH" | "DELETE", url: string, payload?
 
 async function setup() {
   const repo = (await call("POST", "/repos", { path: fx.repo, defaultBase: "origin/develop" })).json();
-  const res = await call("POST", "/tasks", { repoId: repo.id, key: "PROJ-1", title: "Tasas", branch: { mode: "new", branch: "feature/PROJ-1", base: "origin/develop" } });
+  const res = await call("POST", "/tasks", { repoId: repo.id, key: "PROJ-1", title: "Tasas", startSession: false, branch: { mode: "new", branch: "feature/PROJ-1", base: "origin/develop" } });
   return { repo, res, task: res.json().task };
 }
 
@@ -60,7 +64,7 @@ describe("API de repos y tareas", () => {
 
   it("devuelve errores con código y estado HTTP útiles", async () => {
     const { repo } = await setup();
-    const dup = await call("POST", "/tasks", { repoId: repo.id, key: "X", branch: { mode: "new", branch: "develop", base: "origin/main" } });
+    const dup = await call("POST", "/tasks", { repoId: repo.id, key: "X", startSession: false, branch: { mode: "new", branch: "develop", base: "origin/main" } });
     expect(dup.statusCode).toBe(409);
     expect(dup.json()).toMatchObject({ error: "branch_exists", details: { canUseExisting: true } });
 

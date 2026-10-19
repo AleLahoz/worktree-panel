@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import type { AppContext } from "../app.js";
+import type { AppContext } from "../context.js";
 import { AppError } from "../errors.js";
 import { KEY_RE } from "../services/GitService.js";
 
@@ -15,6 +15,8 @@ const createTask = z.object({
     z.object({ mode: z.literal("new"), branch: text, base: text }),
     z.object({ mode: z.literal("existing"), branch: text, base: text.optional() }),
   ]),
+  /** Iniciar la sesión de Claude tras crear (por defecto sí). */
+  startSession: z.boolean().default(true),
 });
 
 const patchTask = z.object({
@@ -33,14 +35,29 @@ export function registerTaskRoutes(api: FastifyInstance, ctx: AppContext) {
       tasks.map(async (task) => {
         const lost = !(await ctx.service.worktreeExists(task).catch(() => false));
         const status = lost ? null : await ctx.service.status(task).catch(() => null);
-        return { ...task, lost, status };
+        return { ...task, lost, status, session: ctx.sessions.states(task.id, task) };
       }),
     );
   });
 
   api.post("/tasks", async (req, reply) => {
-    const body = createTask.parse(req.body);
-    return reply.code(201).send(await ctx.service.createTask(body));
+    const { startSession, ...input } = createTask.parse(req.body);
+    const created = await ctx.service.createTask(input);
+    let task = created.task;
+    const warnings = [...created.warnings];
+    // Tras crear: shell con el setupCommand del repo y, si se pidió, la sesión de Claude.
+    // Un fallo aquí no invalida la tarea (el worktree ya existe): se avisa.
+    const repo = await ctx.store.getRepo(task.repoId);
+    if (repo.setupCommand) {
+      await ctx.sessions.startShell(task, repo.setupCommand).catch((e: Error) => warnings.push(`No se pudo ejecutar setupCommand: ${e.message}`));
+    }
+    if (startSession) {
+      task = await ctx.sessions.startClaude(task).catch((e: Error) => {
+        warnings.push(`No se pudo iniciar Claude: ${e.message}`);
+        return task;
+      });
+    }
+    return reply.code(201).send({ task, warnings, session: ctx.sessions.states(task.id, task) });
   });
 
   api.get("/tasks/:id", async (req) => ctx.store.getTask((req.params as { id: string }).id));

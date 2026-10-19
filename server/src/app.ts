@@ -1,18 +1,11 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { ZodError } from "zod";
+import type { AppContext } from "./context.js";
 import { AppError } from "./errors.js";
 import { registerEnvRoutes } from "./routes/env.js";
 import { registerRepoRoutes } from "./routes/repos.js";
+import { registerSessionRoutes } from "./routes/sessions.js";
 import { registerTaskRoutes } from "./routes/tasks.js";
-import type { TaskService } from "./services/TaskService.js";
-import type { TaskStore } from "./services/TaskStore.js";
-
-export interface AppContext {
-  port: number;
-  dataDir: string;
-  store: TaskStore;
-  service: TaskService;
-}
 
 /** Solo se aceptan peticiones cuyo Host y Origin sean locales (protege de DNS rebinding y webs externas). */
 export function isAllowedHost(host: string | undefined, port: number): boolean {
@@ -46,6 +39,7 @@ export function buildApp(ctx: AppContext): FastifyInstance {
     registerEnvRoutes(api, ctx);
     registerRepoRoutes(api, ctx);
     registerTaskRoutes(api, ctx);
+    registerSessionRoutes(api, ctx);
   }, { prefix: "/api" });
 
   return app;

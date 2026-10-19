@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import type { AppContext } from "../app.js";
+import type { AppContext } from "../context.js";
 import { AppError } from "../errors.js";
 import { GitService } from "../services/GitService.js";
 
