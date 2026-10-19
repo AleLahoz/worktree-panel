@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { copyFile, mkdir, readFile, appendFile, stat } from "node:fs/promises";
+import { copyFile, mkdir, readFile, appendFile, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { AppError } from "../errors.js";
 import type { GitStatus } from "../types.js";
@@ -35,6 +35,8 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
 const ok = async (cwd: string, ...args: string[]) => (await run(cwd, args)).code === 0;
 
 export const KEY_RE = /^[A-Za-z0-9._-]{1,64}$/;
+const REMOVE_ATTEMPTS = 8;
+const BUSY_DIR = /permission denied|failed to delete|being used by another process|resource busy|directory not empty/i;
 
 export interface WorktreeInfo {
   path: string;
@@ -230,12 +232,34 @@ export const GitService = {
   async removeWorktree(repo: string, worktreePath: string, force: boolean): Promise<void> {
     const args = ["worktree", "remove", ...(force ? ["--force"] : []), worktreePath];
     let r = await run(repo, args);
-    if (r.code !== 0 && /locked/i.test(r.stderr)) {
-      await run(repo, ["worktree", "unlock", worktreePath]);
+    for (let attempt = 1; r.code !== 0 && attempt <= REMOVE_ATTEMPTS; attempt++) {
+      if (/locked/i.test(r.stderr)) {
+        await run(repo, ["worktree", "unlock", worktreePath]);
+      } else if (/not a working tree/i.test(r.stderr)) {
+        // git ya lo desregistró en un intento anterior pero no pudo borrar el directorio.
+        await this.removeLeftoverDir(repo, worktreePath);
+        r = { ...r, code: 0 };
+        break;
+      } else if (BUSY_DIR.test(r.stderr)) {
+        // En Windows el directorio sigue "en uso" un instante tras terminar los procesos que lo tenían como cwd.
+        await new Promise((res) => setTimeout(res, 400 * attempt));
+      } else break;
       r = await run(repo, args);
     }
     if (r.code !== 0) throw new AppError(409, "worktree_remove_failed", `No se pudo eliminar el worktree: ${r.stderr}`);
     await run(repo, ["worktree", "prune"]);
+  },
+
+  /**
+   * Borra el directorio de un worktree que git ya no registra (p. ej. tras un borrado a medias).
+   * Solo actúa dentro de <repo>/.claude/worktrees/, nunca fuera.
+   */
+  async removeLeftoverDir(repo: string, dir: string): Promise<void> {
+    const base = norm(path.join(repo, ".claude", "worktrees")) + path.sep;
+    if (!norm(dir).startsWith(base)) throw new AppError(400, "unsafe_path", `${dir} no está dentro de .claude/worktrees`);
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }).catch((e: Error) => {
+      throw new AppError(409, "worktree_remove_failed", `No se pudo borrar el directorio ${dir}: ${e.message}`);
+    });
   },
 
   async deleteBranch(repo: string, branch: string, force: boolean): Promise<void> {

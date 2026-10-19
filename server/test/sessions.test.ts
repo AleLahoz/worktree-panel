@@ -8,7 +8,7 @@ import { buildApp } from "../src/app.js";
 import { saveConfig, DEFAULT_CONFIG } from "../src/config.js";
 import { createContext, type AppContext } from "../src/context.js";
 import type { RawPty } from "../src/services/PtyManager.js";
-import { claudeCommand, cleanEnv, renderPrompt } from "../src/services/SessionService.js";
+import { claudeCommand, cleanEnv, isTrustDialogShowing, renderPrompt } from "../src/services/SessionService.js";
 import type { Task } from "../src/types.js";
 import { attachWebSocket } from "../src/ws.js";
 import { createFixture, type Fixture } from "./fixture.js";
@@ -33,7 +33,7 @@ let fx: Fixture;
 let ctx: AppContext;
 let spawned: FakePty[];
 let task: Task;
-const FAST = { readyQuietMs: 50, readyTimeoutMs: 600, secondInterruptMs: 10, stopGraceMs: 80 };
+const FAST = { readyQuietMs: 50, readyTimeoutMs: 600, secondInterruptMs: 10, stopGraceMs: 80, trustDialogWaitMs: 5000 };
 
 beforeEach(async () => {
   fx = createFixture();
@@ -61,6 +61,13 @@ describe("funciones puras", () => {
   it("claudeCommand envuelve .cmd con cmd.exe y deja .exe tal cual", () => {
     expect(claudeCommand("C:\\x\\claude.cmd", ["--resume", "id"])).toEqual({ file: "cmd.exe", args: ["/d", "/s", "/c", "C:\\x\\claude.cmd", "--resume", "id"] });
     expect(claudeCommand("C:\\x\\claude.exe", ["--resume", "id"])).toEqual({ file: "C:\\x\\claude.exe", args: ["--resume", "id"] });
+  });
+
+  it("isTrustDialogShowing distingue el diálogo en pantalla del ya aceptado", () => {
+    const dialog = "Quick safety check\r\n\x1b[36m> No, exit\x1b[0m\r\n  Yes, I trust this folder\r\nEnter to confirm · Esc to cancel";
+    expect(isTrustDialogShowing(dialog)).toBe(true);
+    expect(isTrustDialogShowing(dialog + "\x1b[2J Claude Code v2.1.303\r\n")).toBe(false);
+    expect(isTrustDialogShowing("Claude Code v2")).toBe(false);
   });
 
   it("renderPrompt rellena la plantilla", () => {
@@ -98,6 +105,16 @@ describe("sesión de Claude", () => {
     expect(prompt).toContain("feature/PROJ-1");
     expect(prompt).toContain("@.task/funcional.pdf");
     expect(prompt).not.toMatch(/[\r\n]$/);
+  });
+
+  it("no escribe el prompt mientras el diálogo de confianza siga en pantalla y lo escribe al aceptarlo", async () => {
+    await ctx.sessions.startClaude(task);
+    const p = spawned[0];
+    p.emit("\x1b[1mQuick safety check\x1b[0m\r\n> No, exit\r\n  Yes, I trust this folder\r\nEnter to confirm");
+    await new Promise((r) => setTimeout(r, 900)); // más que readyTimeoutMs: seguiría esperando por el diálogo
+    expect(p.written).toEqual([]);
+    p.emit("[2J" + "Claude Code v2 ".repeat(40)); // el usuario aceptó y Claude redibuja
+    await vi.waitFor(() => expect(p.written).toHaveLength(1), { timeout: 2000 });
   });
 
   it("si Claude no queda estable en el plazo, no escribe nada (queda el botón manual)", async () => {

@@ -1,13 +1,20 @@
-﻿{
+{
   "name": "worktree-panel",
   "private": true,
   "version": "0.1.0",
-  "workspaces": ["server", "web"],
+  "workspaces": [
+    "server",
+    "web"
+  ],
   "scripts": {
-    "dev": "npm run dev -w server",
+    "dev": "concurrently -n server,web -c cyan,yellow \"npm run dev -w server\" \"npm run dev -w web\"",
     "build": "npm run build -w web && npm run build -w server",
-    "start": "npm run start -w server",
+    "start": "npm run build -w web && npm run start:server",
     "test": "npm run test -w server",
-    "env-check": "npm run env-check -w server"
+    "env-check": "npm run env-check -w server",
+    "start:server": "tsx server/src/index.ts"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
   }
 }

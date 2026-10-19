@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -213,6 +214,36 @@ describe("cerrar tarea", () => {
     await (await import("node:fs/promises")).rm(task.worktreePath, { recursive: true, force: true });
     await fx.service.closeTask(task.id);
     expect(await fx.store.listTasks()).toHaveLength(0);
+  });
+
+  it("reintenta si el directorio sigue en uso (proceso con el worktree como cwd, típico de Windows)", async () => {
+    const { task } = await newTask();
+    const holder = spawn(process.execPath, ["-e", "setTimeout(() => {}, 2500)"], { cwd: task.worktreePath, stdio: "ignore" });
+    await new Promise((r) => setTimeout(r, 300)); // que el proceso ya esté arrancado dentro del directorio
+    await fx.service.closeTask(task.id);
+    holder.kill();
+    expect(existsSync(task.worktreePath)).toBe(false);
+    expect(git(fx.repo, "worktree", "list", "--porcelain")).not.toContain("PROJ-1");
+    expect(await fx.store.listTasks()).toHaveLength(0);
+  }, 40_000);
+
+  it("al cerrar una tarea con worktree perdido borra el directorio sobrante de un borrado a medias", async () => {
+    const { task } = await newTask();
+    git(fx.repo, "worktree", "remove", "--force", task.worktreePath); // git lo desregistra...
+    mkdirSync(path.join(task.worktreePath, ".task"), { recursive: true }); // ...pero queda el directorio
+    writeFileSync(path.join(task.worktreePath, ".task", "notas.md"), "n");
+    await fx.service.closeTask(task.id);
+    expect(existsSync(task.worktreePath)).toBe(false);
+  });
+
+  it("nunca borra directorios fuera de .claude/worktrees", async () => {
+    const { task } = await newTask();
+    const outside = path.join(fx.root, "importante");
+    mkdirSync(outside);
+    writeFileSync(path.join(outside, "x.txt"), "x");
+    await fx.store.saveTask({ ...task, worktreePath: outside });
+    await expectError(fx.service.closeTask(task.id), "unsafe_path");
+    expect(existsSync(path.join(outside, "x.txt"))).toBe(true);
   });
 
   it("llama al gancho de cierre antes de borrar", async () => {

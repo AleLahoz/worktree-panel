@@ -53,8 +53,20 @@ export interface SessionTimings {
   secondInterruptMs: number;
   /** Tras este tiempo sin salir, se mata el proceso. */
   stopGraceMs: number;
+  /** Cuánto se espera a que el usuario responda al diálogo de confianza. */
+  trustDialogWaitMs: number;
 }
-const DEFAULT_TIMINGS: SessionTimings = { readyQuietMs: 1500, readyTimeoutMs: 15000, secondInterruptMs: 300, stopGraceMs: 5000 };
+const DEFAULT_TIMINGS: SessionTimings = { readyQuietMs: 1500, readyTimeoutMs: 15000, secondInterruptMs: 300, stopGraceMs: 5000, trustDialogWaitMs: 300_000 };
+
+/**
+ * ¿Sigue en pantalla el diálogo "Do you trust this folder?" de Claude Code?
+ * Mientras esté, no hay cabecera de Claude posterior a su texto; al aceptarlo, Claude dibuja la pantalla principal.
+ */
+export function isTrustDialogShowing(tail: string): boolean {
+  const plain = tail.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07/g, "");
+  // Tras aceptar, Claude dibuja su cabecera ("Claude Code v…") por debajo del texto del diálogo.
+  return plain.lastIndexOf("I trust this folder") > plain.lastIndexOf("Claude Code v");
+}
 
 export class SessionService {
   constructor(
@@ -110,15 +122,21 @@ export class SessionService {
     pty.write(await this.initialPrompt(task));
   }
 
-  /** Cuando la terminal muestra salida y se queda estable ~1,5 s, escribe el prompt; si no llega a los 15 s, no hace nada. */
+  /**
+   * Cuando la terminal muestra salida y se queda estable ~1,5 s, escribe el prompt; si no llega a los 15 s, no hace nada.
+   * Si Claude está mostrando el diálogo de confianza del directorio, espera a que se responda (el texto se perdería).
+   */
   private scheduleInitialPrompt(task: Task, pty: ManagedPty) {
-    const started = Date.now();
+    let deadline = Date.now() + this.timings.readyTimeoutMs;
     const timer = setInterval(() => {
-      if (pty.exited || Date.now() - started > this.timings.readyTimeoutMs) return clearInterval(timer);
-      if (pty.hasOutput && Date.now() - pty.lastOutputAt >= this.timings.readyQuietMs) {
-        clearInterval(timer);
-        this.writeInitialPrompt(task).catch(() => {});
+      if (pty.exited || Date.now() > deadline) return clearInterval(timer);
+      if (!pty.hasOutput || Date.now() - pty.lastOutputAt < this.timings.readyQuietMs) return;
+      if (isTrustDialogShowing(pty.tail(6000))) {
+        deadline = Math.max(deadline, Date.now() + this.timings.trustDialogWaitMs);
+        return;
       }
+      clearInterval(timer);
+      this.writeInitialPrompt(task).catch(() => {});
     }, 100);
     timer.unref();
   }

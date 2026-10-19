@@ -107,7 +107,11 @@ export class TaskService {
 
     await this.onBeforeClose(task);
     if (exists) await GitService.removeWorktree(repo.path, task.worktreePath, summary.dirty > 0);
-    else await GitService.prune(repo.path);
+    else {
+      // Worktree perdido: se limpia el registro y cualquier directorio sobrante de un borrado a medias.
+      await GitService.prune(repo.path);
+      await GitService.removeLeftoverDir(repo.path, task.worktreePath);
+    }
 
     let branchDeleted = false;
     if (opts.deleteBranch) {

@@ -83,6 +83,11 @@ export class ManagedPty {
     return this.size > 0;
   }
 
+  /** Últimos `n` caracteres de la salida (para detectar diálogos sin interferir con la terminal). */
+  tail(n: number): string {
+    return this.chunks.join("").slice(-n);
+  }
+
   status(): PtyStatus {
     if (this.exited) return "stopped";
     return this.opts.now() - this.lastOutputAt > this.opts.idleMs ? "waiting" : "running";
