@@ -6,19 +6,43 @@ Pensado para Windows 10/11 (también funciona en macOS y Linux). Todo corre en t
 
 ## Requisitos
 
-- Node.js 20 o superior (probado con 25.8)
-- Git for Windows
-- [Claude Code](https://code.claude.com) instalado y con la sesión iniciada
+- **Node.js 20 o superior** con npm (probado con 25.8)
+- **Git** (en Windows, Git for Windows)
+- **[Claude Code](https://code.claude.com)** instalado, en el `PATH` y con la sesión iniciada (`claude --version` debe funcionar)
 
-## Uso
+No hace falta compilador ni Visual Studio Build Tools: `node-pty` se instala con binarios precompilados.
+
+## Instalación y arranque
 
 ```powershell
+git clone <url-del-repositorio> worktree-panel
+cd worktree-panel
 npm install
-npm run dev      # desarrollo: backend en :4317 y Vite en :5173 (abre http://127.0.0.1:5173)
-npm start        # producción: compila el frontend y lo sirve desde http://127.0.0.1:4317
-npm test         # tests del servidor (repos temporales reales, sin tocar los tuyos)
-npm run env-check  # comprueba git, claude y node-pty en esta máquina
+npm start
 ```
+
+Cuando veas `Worktree Panel escuchando en http://127.0.0.1:4317`, abre esa dirección en el navegador. Para pararlo, `Ctrl+C` (eso cierra también las sesiones de Claude en marcha).
+
+Antes de empezar puedes comprobar el entorno con `npm run env-check`: verifica git, Claude Code y `node-pty`, y muestra qué falta.
+
+## Comandos
+
+| Comando | Qué hace |
+|---|---|
+| `npm start` | Compila el frontend y lo sirve junto al backend en `http://127.0.0.1:4317` (uso normal) |
+| `npm run dev` | Desarrollo: backend con recarga en `:4317` y Vite en `:5173` (abre `http://127.0.0.1:5173`) |
+| `npm run build` | Compila frontend (`web/dist`) y backend (`server/dist`) |
+| `npm test` | Tests del servidor, con repos git temporales reales (no tocan los tuyos) |
+| `npm run env-check` | Comprueba git, Claude Code y `node-pty` en esta máquina |
+
+Variables opcionales: `PORT` (por defecto `4317`) y `WTP_DATA_DIR` (carpeta de datos).
+
+## Si algo falla
+
+- **`npm` no se encuentra o falla con un error de `npm-prefix.js`**: la instalación de Node está incompleta. Con fnm, `fnm install 24 --force` (o usa otra versión con `fnm use <versión>`).
+- **El panel dice que Claude Code no está disponible**: `claude` no está en el `PATH` de la terminal desde la que arrancaste el panel. Abre una nueva terminal tras instalarlo, o indica la ruta en Ajustes → General.
+- **Puerto ocupado**: arranca con otro puerto, `$env:PORT=4400; npm start` en PowerShell.
+- **Errores con rutas largas en Windows dentro de un worktree**: `git config --global core.longpaths true`.
 
 Los datos (repos, tareas, configuración) se guardan como JSON en `%APPDATA%\worktree-panel\` (`~/.worktree-panel/` en otros sistemas). Con `WTP_DATA_DIR` puedes usar otra carpeta y con `PORT` otro puerto.
 

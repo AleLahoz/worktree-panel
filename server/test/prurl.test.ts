@@ -36,7 +36,7 @@ describe("normalizeRemote", () => {
   });
 
   it("rutas locales (Windows y POSIX) no son remotos web: no se confunden con scp", () => {
-    expect(normalizeRemote("C:\\Users\\aleja\\origin.git")).toBeNull();
+    expect(normalizeRemote("C:\\Users\\dev\\origin.git")).toBeNull();
     expect(normalizeRemote("D:/repos/origin.git")).toBeNull();
     expect(normalizeRemote("/srv/git/origin.git")).toBeNull();
     expect(normalizeRemote("../origin.git")).toBeNull();

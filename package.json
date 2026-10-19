@@ -2,6 +2,10 @@
   "name": "worktree-panel",
   "private": true,
   "version": "0.1.0",
+  "description": "Panel web local para trabajar tareas de Jira con Claude Code, cada una en su git worktree",
+  "engines": {
+    "node": ">=20"
+  },
   "workspaces": [
     "server",
     "web"

@@ -1,6 +1,6 @@
 ﻿# Fase 0 — Informe del spike
 
-Entorno: Windows 11, git 2.53.0, Claude Code 2.1.303 (`C:\Users\aleja\.local\bin\claude.exe`).
+Entorno: Windows 11, git 2.53.0, Claude Code 2.1.303 (`%USERPROFILE%\.local\bin\claude.exe`).
 
 ## Resultados
 
