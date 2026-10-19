@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { AppConfig, EnvCheck, Repo } from "../api/types";
+import { FolderOpen } from "lucide-react";
 import { Modal } from "./Modal";
 
 interface Props {
@@ -129,6 +130,7 @@ function RepoRow({ repo, run }: { repo: Repo; run: Run }) {
 
 function AddRepo({ run }: { run: Run }) {
   const [path, setPath] = useState("");
+  const [picking, setPicking] = useState(false);
   const [base, setBase] = useState("");
   return (
     <form
@@ -138,7 +140,22 @@ function AddRepo({ run }: { run: Run }) {
         run(() => api.addRepo({ path, defaultBase: base || undefined }), "Repositorio añadido").then(() => { setPath(""); setBase(""); });
       }}
     >
-      <label className="field">Ruta del repositorio<input className="mono" value={path} onChange={(e) => setPath(e.target.value)} placeholder="C:\Proyectos\mi-repo" /></label>
+      <label className="field">
+        Ruta del repositorio
+        <span className="input-group">
+          <input className="mono" value={path} onChange={(e) => setPath(e.target.value)} placeholder="C:\Proyectos\mi-repo" />
+          <button
+            type="button"
+            className="btn"
+            disabled={picking}
+            onClick={async () => {
+              setPicking(true);
+              await run(async () => { const r = await api.pickFolder(); if (r.path) setPath(r.path); }, "");
+              setPicking(false);
+            }}
+          ><FolderOpen size={15} />{picking ? "Esperando…" : "Examinar…"}</button>
+        </span>
+      </label>
       <label className="field">Rama base sugerida <span className="optional">(opcional)</span><input className="mono" value={base} onChange={(e) => setBase(e.target.value)} placeholder="origin/develop" /></label>
       <div className="modal-actions"><button className="btn primary" disabled={!path.trim()}>Añadir repositorio</button></div>
     </form>

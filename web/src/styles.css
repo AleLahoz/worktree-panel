@@ -294,3 +294,6 @@ h3 { font-size: 14px; font-weight: 600; }
 .output { margin: 0; max-height: 46vh; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; font: 12.5px/1.5 var(--mono); white-space: pre-wrap; }
 .output.bad { border-color: rgba(248, 113, 113, 0.5); }
 .plain { list-style: none; margin: 0; padding: 0; }
+
+.input-group { display: flex; gap: 8px; margin-top: 6px; }
+.input-group input { margin-top: 0 !important; flex: 1; }

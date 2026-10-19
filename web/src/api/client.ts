@@ -28,6 +28,7 @@ export const api = {
   envCheck: () => get<EnvCheck>("/env/check"),
 
   repos: () => get<Repo[]>("/repos"),
+  pickFolder: () => post<{ path: string | null }>("/repos/pick-folder"),
   addRepo: (data: Partial<Repo> & { path: string }) => post<Repo>("/repos", data),
   updateRepo: (id: string, patch: Partial<Repo>) => request<Repo>("PATCH", `/repos/${id}`, patch),
   deleteRepo: (id: string) => request<void>("DELETE", `/repos/${id}`),
