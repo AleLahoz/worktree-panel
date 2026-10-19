@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { AppContext } from "../context.js";
@@ -14,16 +15,12 @@ const repoPatch = z.object({
   prUrlTemplate: optionalText,
 });
 
-/** Selector nativo de carpetas de Windows (el navegador no revela rutas absolutas). Devuelve null si se cancela. */
+const PICK_FOLDER_SCRIPT = fileURLToPath(new URL("./pick-folder.ps1", import.meta.url));
+
+/** Selector de carpetas de Windows (el navegador no revela rutas absolutas). Devuelve null si se cancela. */
 function pickFolder(): Promise<string | null> {
-  const script = [
-    "Add-Type -AssemblyName System.Windows.Forms",
-    "$f = New-Object System.Windows.Forms.Form -Property @{ TopMost = $true; ShowInTaskbar = $false; WindowState = 'Minimized' }",
-    "$d = New-Object System.Windows.Forms.FolderBrowserDialog -Property @{ Description = 'Elige el repositorio git'; ShowNewFolderButton = $false }",
-    "if ($d.ShowDialog($f) -eq 'OK') { [Console]::Out.Write($d.SelectedPath) }",
-  ].join("; ");
   return new Promise((resolve, reject) => {
-    execFile("powershell.exe", ["-NoProfile", "-STA", "-Command", script], { encoding: "utf8", windowsHide: false, timeout: 300_000 }, (err, stdout) => {
+    execFile("powershell.exe", ["-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-File", PICK_FOLDER_SCRIPT], { encoding: "utf8", timeout: 300_000 }, (err, stdout) => {
       if (err) return reject(new AppError(500, "pick_failed", "No se pudo abrir el selector de carpetas"));
       resolve(stdout.trim() || null);
     });
