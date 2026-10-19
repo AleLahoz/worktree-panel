@@ -2,6 +2,9 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { ZodError } from "zod";
 import type { AppContext } from "./context.js";
 import { AppError } from "./errors.js";
+import multipart from "@fastify/multipart";
+import { MAX_DOC_BYTES } from "./services/DocService.js";
+import { registerDocRoutes } from "./routes/docs.js";
 import { registerEnvRoutes } from "./routes/env.js";
 import { registerRepoRoutes } from "./routes/repos.js";
 import { registerSessionRoutes } from "./routes/sessions.js";
@@ -31,15 +34,23 @@ export function buildApp(ctx: AppContext): FastifyInstance {
     if (err instanceof ZodError) {
       return reply.code(400).send({ error: "invalid_input", message: "Datos no válidos", details: err.issues });
     }
+    // Errores 4xx de Fastify y sus plugins (p. ej. 413 de multipart): se devuelven tal cual.
+    const fe = err as { statusCode?: number; code?: string };
+    if (fe.statusCode && fe.statusCode >= 400 && fe.statusCode < 500) {
+      return reply.code(fe.statusCode).send({ error: fe.code ?? "bad_request", message: (err as Error).message });
+    }
     console.error(err);
     return reply.code(500).send({ error: "internal", message: "Error interno" });
   });
+
+  app.register(multipart, { limits: { fileSize: MAX_DOC_BYTES, files: 50 } });
 
   app.register(async (api) => {
     registerEnvRoutes(api, ctx);
     registerRepoRoutes(api, ctx);
     registerTaskRoutes(api, ctx);
     registerSessionRoutes(api, ctx);
+    registerDocRoutes(api, ctx);
   }, { prefix: "/api" });
 
   return app;

@@ -166,3 +166,23 @@ h3 { font-size: 14px; }
   .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
   .sidebar { max-height: 38vh; border-right: 0; border-bottom: 1px solid var(--line); }
 }
+
+/* ---------- documentos ---------- */
+.main { position: relative; }
+.docs { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 22px; display: flex; flex-direction: column; gap: 16px; }
+.docs-head { display: flex; gap: 20px; align-items: flex-start; justify-content: space-between; }
+.docs-head p { max-width: 62ch; }
+.docs-empty { border: 1px dashed var(--line); border-radius: var(--radius); padding: 36px 24px; text-align: center; display: flex; flex-direction: column; gap: 6px; }
+.doc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.doc-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.doc-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.doc-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doc-actions { display: flex; gap: 8px; align-items: center; flex: none; }
+.drop-overlay { position: absolute; inset: 0; z-index: 5; background: rgba(13, 21, 26, 0.82); display: flex; align-items: center; justify-content: center; padding: 24px; pointer-events: none; }
+.drop-box { border: 2px dashed var(--accent); border-radius: 12px; padding: 36px 48px; font-size: 18px; text-align: center; background: var(--panel); }
+.dropzone { border: 1px dashed var(--line); border-radius: var(--radius); padding: 10px 12px; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.dropzone.over { border-color: var(--accent); background: var(--bg); }
+.file-chips { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+.chip { display: flex; align-items: center; gap: 2px; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 1px 4px 1px 10px; color: var(--text); font-size: 12px; }
+.chip .icon-btn { font-size: 16px; padding: 0 6px; }
+.toast .btn { padding: 3px 10px; font-size: 13px; }

@@ -1,4 +1,4 @@
-import type { AppConfig, Branches, BranchSpec, EnvCheck, Repo, SessionStates, Task, TaskView } from "./types";
+import type { AppConfig, Branches, BranchSpec, DocInfo, EnvCheck, Repo, SavedDoc, SessionStates, Task, TaskView } from "./types";
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public details?: any) {
@@ -7,10 +7,11 @@ export class ApiError extends Error {
 }
 
 async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
+  const isForm = body instanceof FormData;
   const res = await fetch(`/api${url}`, {
     method,
-    headers: body !== undefined ? { "content-type": "application/json" } : undefined,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    headers: body !== undefined && !isForm ? { "content-type": "application/json" } : undefined,
+    body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
   });
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => ({}));
@@ -39,6 +40,15 @@ export const api = {
   closeTask: (id: string, opts: { force?: boolean; deleteBranch?: boolean }) =>
     post<{ summary: { dirty: number; unpushed: number }; branchDeleted: boolean }>(`/tasks/${id}/close`, opts),
   archiveTask: (id: string) => post<void>(`/tasks/${id}/archive`),
+
+  docs: (id: string) => get<DocInfo[]>(`/tasks/${id}/docs`),
+  uploadDocs: (id: string, files: File[]) => {
+    const form = new FormData();
+    for (const f of files) form.append("file", f, f.name);
+    return request<SavedDoc[]>("POST", `/tasks/${id}/docs`, form);
+  },
+  deleteDoc: (id: string, name: string) => request<void>("DELETE", `/tasks/${id}/docs/${encodeURIComponent(name)}`),
+  openDoc: (id: string, name: string) => post<void>(`/tasks/${id}/docs/${encodeURIComponent(name)}/open`),
 
   startSession: (id: string) => post<SessionStates>(`/tasks/${id}/session/start`),
   resumeSession: (id: string) => post<SessionStates>(`/tasks/${id}/session/resume`),

@@ -28,6 +28,8 @@ export function NewTaskModal({ repos, defaultTemplate, claudeAvailable, onClose,
   const [branches, setBranches] = useState<Branches>({ local: [], remote: [] });
   const [error, setError] = useState<ApiError | Error | null>(null);
   const [working, setWorking] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [over, setOver] = useState(false);
 
   const template = repo?.branchTemplate ?? defaultTemplate;
 
@@ -50,15 +52,32 @@ export function NewTaskModal({ repos, defaultTemplate, claudeAvailable, onClose,
     setWorking(true);
     setError(null);
     try {
+      // Con documentos: primero se crea sin sesión, se suben, y entonces arranca Claude (así el prompt lleva las referencias @).
       const res = await api.createTask({
         repoId,
         key,
         title: title.trim() || undefined,
         jiraUrl: jiraUrl.trim() || undefined,
         branch: mode === "new" ? { mode, branch: branch.trim(), base } : { mode, branch: existing, base: base || undefined },
-        startSession,
+        startSession: startSession && files.length === 0,
       });
-      onCreated(res.task.id, res.warnings);
+      const warnings = [...res.warnings];
+      if (files.length) {
+        try {
+          const saved = await api.uploadDocs(res.task.id, files);
+          saved.forEach((s) => s.warning && warnings.push(s.warning));
+        } catch (err) {
+          warnings.push(`No se pudieron adjuntar los documentos: ${(err as Error).message}`);
+        }
+        if (startSession) {
+          try {
+            await api.startSession(res.task.id);
+          } catch (err) {
+            warnings.push(`No se pudo iniciar Claude: ${(err as Error).message}`);
+          }
+        }
+      }
+      onCreated(res.task.id, warnings);
     } catch (err) {
       setError(err as Error);
       setWorking(false);
@@ -128,6 +147,29 @@ export function NewTaskModal({ repos, defaultTemplate, claudeAvailable, onClose,
             </label>
           </>
         )}
+
+        <div
+          className={`dropzone${over ? " over" : ""}`}
+          onDragOver={(e) => { e.preventDefault(); setOver(true); }}
+          onDragLeave={() => setOver(false)}
+          onDrop={(e) => { e.preventDefault(); setOver(false); setFiles((f) => [...f, ...e.dataTransfer.files]); }}
+        >
+          <span>Documentos <span className="optional">(opcional)</span>: arrastra aquí los ficheros o</span>
+          <label className="link-btn">
+            elígelos
+            <input type="file" multiple hidden onChange={(e) => { setFiles((f) => [...f, ...(e.target.files ?? [])]); e.target.value = ""; }} />
+          </label>
+          {files.length > 0 && (
+            <ul className="file-chips">
+              {files.map((f, i) => (
+                <li key={`${f.name}-${i}`} className="chip">
+                  <span className="mono">{f.name}</span>
+                  <button type="button" className="icon-btn" aria-label={`Quitar ${f.name}`} onClick={() => setFiles((all) => all.filter((_, j) => j !== i))}>×</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
         <label className="check">
           <input type="checkbox" checked={startSession} disabled={!claudeAvailable} onChange={(e) => setStartSession(e.target.checked)} />

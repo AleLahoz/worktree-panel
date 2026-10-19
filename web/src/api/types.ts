@@ -70,3 +70,13 @@ export interface AppConfig {
   initialPromptTemplate: string;
   defaultBranchTemplate: string;
 }
+
+export interface DocInfo {
+  name: string;
+  size: number;
+  modified: string;
+}
+
+export interface SavedDoc extends DocInfo {
+  warning?: string;
+}

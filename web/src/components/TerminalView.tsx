@@ -9,6 +9,8 @@ interface Props {
   kind: "claude" | "shell";
   /** Cambia cuando el usuario inicia/retoma: fuerza una nueva conexión. */
   connectKey: number;
+  /** Al cambiar, la terminal toma el foco del teclado. */
+  focusSignal?: number;
   visible: boolean;
   /** Se muestra cuando no hay terminal viva en el backend. */
   empty: ReactNode;
@@ -27,7 +29,7 @@ const THEME = {
 };
 
 /** xterm.js conectado por WebSocket a la pty de la tarea. Al reconectar, el backend reenvía el buffer. */
-export function TerminalView({ taskId, kind, connectKey, visible, empty, onExit, onStatus }: Props) {
+export function TerminalView({ taskId, kind, connectKey, focusSignal = 0, visible, empty, onExit, onStatus }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -112,10 +114,11 @@ export function TerminalView({ taskId, kind, connectKey, visible, empty, onExit,
 
   useEffect(() => {
     if (visible && !unavailable) {
+      // `focusSignal` está en las dependencias: cada incremento vuelve a enfocar.
       fitRef.current?.fit();
       termRef.current?.focus();
     }
-  }, [visible, unavailable]);
+  }, [visible, unavailable, focusSignal]);
 
   return (
     <div className="terminal-wrap" hidden={!visible}>
