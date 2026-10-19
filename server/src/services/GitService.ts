@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { copyFile, mkdir, readFile, appendFile, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { AppError } from "../errors.js";
@@ -81,8 +82,11 @@ const norm = (p: string) => path.resolve(p).toLowerCase();
 export const GitService = {
   /** Raíz real del checkout; lanza si no es un repo git. */
   async repoRoot(p: string): Promise<string> {
-    const r = await run(p, ["rev-parse", "--show-toplevel"]);
-    if (r.code !== 0) throw new AppError(400, "not_a_repo", `"${p}" no es un checkout git`);
+    const r = await run(p, ["rev-parse", "--show-toplevel"]).catch((e: NodeJS.ErrnoException) => {
+      if (e.code === "ENOENT" && !existsSync(p)) return null; // si existe, el que falta es git
+      throw e;
+    });
+    if (!r || r.code !== 0) throw new AppError(400, "not_a_repo", `"${p}" no es un checkout git`);
     return path.resolve(r.stdout);
   },
 

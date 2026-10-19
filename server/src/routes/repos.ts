@@ -17,7 +17,9 @@ export function registerRepoRoutes(api: FastifyInstance, ctx: AppContext) {
   api.get("/repos", () => ctx.store.listRepos());
 
   api.post("/repos", async (req, reply) => {
-    const body = repoPatch.extend({ path: z.string().trim().min(1) }).parse(req.body);
+    // "Copiar como ruta" de Windows entrecomilla la ruta.
+    const unquoted = z.string().transform((s) => s.trim().replace(/^(["'])(.*)\1$/, "$2").trim());
+    const body = repoPatch.extend({ path: unquoted.pipe(z.string().min(1)) }).parse(req.body);
     const { path, ...extra } = body;
     return reply.code(201).send(await ctx.service.addRepo(path, extra));
   });
