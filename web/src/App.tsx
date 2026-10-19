@@ -8,7 +8,9 @@ import { GitPanel } from "./components/GitPanel";
 import { Modal } from "./components/Modal";
 import { NewTaskModal } from "./components/NewTaskModal";
 import { SettingsModal } from "./components/SettingsModal";
-import { Sidebar } from "./components/Sidebar";
+import { Board } from "./components/Board";
+import { TopBar } from "./components/TopBar";
+import { X, FileText, GitBranch, Terminal as TerminalIcon, Bot } from "lucide-react";
 import { TaskHeader } from "./components/TaskHeader";
 import { TerminalView } from "./components/TerminalView";
 
@@ -140,6 +142,17 @@ export function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [repos.length]);
+
+  // Esc vuelve al tablero, salvo que haya un diálogo abierto o el foco esté en la terminal (ahí Esc es de Claude).
+  useEffect(() => {
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || !selectedId || document.querySelector("dialog[open]")) return;
+      if ((e.target as HTMLElement)?.closest?.(".xterm")) return;
+      setSelectedId(undefined);
+    };
+    window.addEventListener("keydown", onEsc);
+    return () => window.removeEventListener("keydown", onEsc);
+  }, [selectedId]);
 
   useEffect(() => {
     if (selectedId && loaded && !task) setSelectedId(undefined);
@@ -281,123 +294,123 @@ export function App() {
 
   const claudeAvailable = env?.claudeAvailable ?? true;
 
+  const tabBtn = (id: Tab, label: string, icon: React.ReactNode, extra?: string) => (
+    <button role="tab" aria-selected={tab === id} className={tab === id ? "tab active" : "tab"} onClick={() => setTab(id)}>
+      {icon}{label}{extra && <span className="tab-count">{extra}</span>}
+    </button>
+  );
+
   return (
     <div className="app">
-      <Sidebar
-        repos={repos}
+      <TopBar
         tasks={tasks}
         selectedId={selectedId}
         filter={filter}
         onFilter={setFilter}
         onSelect={(id) => { setSelectedId(id); setTab("claude"); }}
+        onBoard={() => setSelectedId(undefined)}
         onNew={() => (repos.length ? setModal("new") : setModal("settings"))}
         onSettings={() => setModal("settings")}
         filterRef={filterRef}
-        orphans={orphans}
-        onImport={setImporting}
       />
 
-      <main className="main" {...dragProps}>
-        {!task ? (
-          <div className="welcome">
-            <h1>Worktree Panel</h1>
-            {repos.length === 0 ? (
-              <>
-                <p>Cada tarea de Jira vive en su propio worktree, con su documentación y su sesión de Claude Code.</p>
-                <button className="btn primary" onClick={() => setModal("settings")}>Añadir un repositorio</button>
-              </>
-            ) : (
-              <>
-                <p>{tasks.length ? "Elige una tarea en la barra lateral o crea otra." : "Todavía no hay tareas."}</p>
-                <button className="btn primary" onClick={() => setModal("new")}>Nueva tarea</button>
-              </>
-            )}
-          </div>
-        ) : (
+      <main className={`stage${task ? " has-sheet" : ""}`}>
+        <Board
+          repos={repos}
+          tasks={tasks}
+          orphans={orphans}
+          filter={filter}
+          selectedId={selectedId}
+          onOpen={(id) => { setSelectedId(id); setTab("claude"); }}
+          onImport={setImporting}
+          onNew={() => (repos.length ? setModal("new") : setModal("settings"))}
+        />
+
+        {task && (
           <>
-            <TaskHeader
-              task={task}
-              busy={busy}
-              claudeAvailable={claudeAvailable}
-              onStart={() => act(() => api.startSession(task.id), "claude")}
-              onResume={() => act(() => api.resumeSession(task.id), "claude")}
-              onStop={() => act(() => api.stopSession(task.id))}
-              onInitialPrompt={() => act(async () => { await api.initialPrompt(task.id); setTab("claude"); setFocusClaude((n) => n + 1); })}
-              onPush={push}
-              onOpenPr={openPr}
-              onClose={async (opts) => {
-                await api.closeTask(task.id, opts);
-                setSelectedId(undefined);
-                await refresh();
-              }}
-              onArchive={() => act(async () => { await api.archiveTask(task.id); setSelectedId(undefined); })}
-              onRefresh={refresh}
-            />
+            <div className="sheet-backdrop" onClick={() => setSelectedId(undefined)} />
+            <section className="sheet" key={task.id} aria-label={`Tarea ${task.key}`} {...dragProps}>
+              <TaskHeader
+                task={task}
+                busy={busy}
+                claudeAvailable={claudeAvailable}
+                onBack={() => setSelectedId(undefined)}
+                onStart={() => act(() => api.startSession(task.id), "claude")}
+                onResume={() => act(() => api.resumeSession(task.id), "claude")}
+                onStop={() => act(() => api.stopSession(task.id))}
+                onInitialPrompt={() => act(async () => { await api.initialPrompt(task.id); setTab("claude"); setFocusClaude((n) => n + 1); })}
+                onPush={push}
+                onOpenPr={openPr}
+                onClose={async (opts) => {
+                  await api.closeTask(task.id, opts);
+                  setSelectedId(undefined);
+                  await refresh();
+                }}
+                onArchive={() => act(async () => { await api.archiveTask(task.id); setSelectedId(undefined); })}
+                onRefresh={refresh}
+              />
 
-            <div className="tabs" role="tablist">
-              <button role="tab" aria-selected={tab === "claude"} className={tab === "claude" ? "tab active" : "tab"} onClick={() => setTab("claude")}>Claude</button>
-              <button role="tab" aria-selected={tab === "shell"} className={tab === "shell" ? "tab active" : "tab"} onClick={() => setTab("shell")}>Shell</button>
-              <button role="tab" aria-selected={tab === "docs"} className={tab === "docs" ? "tab active" : "tab"} onClick={() => setTab("docs")}>
-                Documentos{docs.length ? ` (${docs.length})` : ""}
-              </button>
-              <button role="tab" aria-selected={tab === "git"} className={tab === "git" ? "tab active" : "tab"} onClick={() => setTab("git")}>
-                Git{task.status?.changedFiles ? ` (${task.status.changedFiles})` : ""}
-              </button>
-            </div>
-
-            {task.lost ? (
-              <div className="empty-state">
-                <p>Git ya no registra este worktree o se borró su directorio. Puedes archivar la tarea; la rama sigue en el repositorio.</p>
+              <div className="tabs" role="tablist">
+                {tabBtn("claude", "Claude", <Bot size={15} />)}
+                {tabBtn("shell", "Shell", <TerminalIcon size={15} />)}
+                {tabBtn("docs", "Documentos", <FileText size={15} />, docs.length ? String(docs.length) : undefined)}
+                {tabBtn("git", "Git", <GitBranch size={15} />, task.status?.changedFiles ? String(task.status.changedFiles) : undefined)}
               </div>
-            ) : (
-              <>
-                {(["claude", "shell"] as const).map((k) => (
-                  <TerminalView
-                    key={`${task.id}:${k}`}
-                    taskId={task.id}
-                    kind={k}
-                    connectKey={connectKey[k]}
-                    focusSignal={k === "claude" ? focusClaude : 0}
-                    visible={tab === k}
-                    empty={emptyFor(k)}
-                    onExit={refresh}
-                    onStatus={refresh}
-                  />
-                ))}
-                {tab === "git" && (
-                  <GitPanel
-                    task={task}
-                    active
-                    onSavePrUrl={async (url) => {
-                      try {
-                        await api.patchTask(task.id, { prUrl: url });
-                        await refresh();
-                      } catch (e) {
-                        fail(e);
-                      }
-                    }}
-                  />
-                )}
-                {tab === "docs" && (
-                  <DocsPanel
-                    docs={docs}
-                    claudeAlive={!!claudeAlive}
-                    onAdd={addDocs}
-                    onInsert={(name) => insertRefs([name])}
-                    onOpen={(name) => api.openDoc(task.id, name).catch(fail)}
-                    onDelete={async (name) => {
-                      try {
-                        await api.deleteDoc(task.id, name);
-                        await refreshDocs();
-                      } catch (e) {
-                        fail(e);
-                      }
-                    }}
-                  />
-                )}
-              </>
-            )}
-            {dragging && <DropOverlay taskKey={task.key} />}
+
+              {task.lost ? (
+                <div className="empty-state">
+                  <p>Git ya no registra este worktree o se borró su directorio. Puedes archivar la tarea; la rama sigue en el repositorio.</p>
+                </div>
+              ) : (
+                <>
+                  {(["claude", "shell"] as const).map((k) => (
+                    <TerminalView
+                      key={`${task.id}:${k}`}
+                      taskId={task.id}
+                      kind={k}
+                      connectKey={connectKey[k]}
+                      focusSignal={k === "claude" ? focusClaude : 0}
+                      visible={tab === k}
+                      empty={emptyFor(k)}
+                      onExit={refresh}
+                      onStatus={refresh}
+                    />
+                  ))}
+                  {tab === "git" && (
+                    <GitPanel
+                      task={task}
+                      active
+                      onSavePrUrl={async (url) => {
+                        try {
+                          await api.patchTask(task.id, { prUrl: url });
+                          await refresh();
+                        } catch (e) {
+                          fail(e);
+                        }
+                      }}
+                    />
+                  )}
+                  {tab === "docs" && (
+                    <DocsPanel
+                      docs={docs}
+                      claudeAlive={!!claudeAlive}
+                      onAdd={addDocs}
+                      onInsert={(name) => insertRefs([name])}
+                      onOpen={(name) => api.openDoc(task.id, name).catch(fail)}
+                      onDelete={async (name) => {
+                        try {
+                          await api.deleteDoc(task.id, name);
+                          await refreshDocs();
+                        } catch (e) {
+                          fail(e);
+                        }
+                      }}
+                    />
+                  )}
+                </>
+              )}
+              {dragging && <DropOverlay taskKey={task.key} />}
+            </section>
           </>
         )}
       </main>
@@ -406,7 +419,7 @@ export function App() {
         <div className={`toast ${notice.kind}`} role={notice.kind === "error" ? "alert" : "status"}>
           <span>{notice.text}</span>
           {notice.action && <button className="btn" onClick={notice.action.run}>{notice.action.label}</button>}
-          <button className="icon-btn" onClick={() => setNotice(null)} aria-label="Descartar">×</button>
+          <button className="icon-btn" onClick={() => setNotice(null)} aria-label="Descartar"><X size={14} /></button>
         </div>
       )}
 

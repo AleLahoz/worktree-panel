@@ -1,12 +1,14 @@
 import { useState } from "react";
 import type { TaskView } from "../api/types";
 import { Modal } from "./Modal";
-import { SESSION_LABEL } from "./Sidebar";
+import { ArrowLeft, ArrowUpFromLine, ExternalLink, GitPullRequest, Play, RefreshCw, RotateCcw, Square, TextCursorInput, Trash2 } from "lucide-react";
+import { SESSION_LABEL } from "./session";
 
 interface Props {
   task: TaskView;
   busy: boolean;
   claudeAvailable: boolean;
+  onBack: () => void;
   onStart: () => void;
   onResume: () => void;
   onStop: () => void;
@@ -18,7 +20,7 @@ interface Props {
   onRefresh: () => void;
 }
 
-export function TaskHeader({ task, busy, claudeAvailable, onStart, onResume, onStop, onInitialPrompt, onPush, onOpenPr, onClose, onArchive, onRefresh }: Props) {
+export function TaskHeader({ task, busy, claudeAvailable, onBack, onStart, onResume, onStop, onInitialPrompt, onPush, onOpenPr, onClose, onArchive, onRefresh }: Props) {
   const [closing, setClosing] = useState(false);
   const { status, session } = task;
   const alive = session.claude === "running" || session.claude === "waiting";
@@ -27,12 +29,13 @@ export function TaskHeader({ task, busy, claudeAvailable, onStart, onResume, onS
   return (
     <header className="task-header">
       <div className="th-title">
+        <button className="icon-btn back" onClick={onBack} aria-label="Volver al tablero" title="Volver al tablero (Esc)"><ArrowLeft size={18} /></button>
         <h1>
           <span className="mono">{task.key}</span>
           {task.title && <span className="th-text">{task.title}</span>}
         </h1>
         {task.jiraUrl && (
-          <a className="link" href={task.jiraUrl} target="_blank" rel="noreferrer">Abrir en Jira</a>
+          <a className="link" href={task.jiraUrl} target="_blank" rel="noreferrer">Jira <ExternalLink size={12} /></a>
         )}
       </div>
 
@@ -40,7 +43,7 @@ export function TaskHeader({ task, busy, claudeAvailable, onStart, onResume, onS
         <span className="mono">{task.branch}</span>
         <span className="from" aria-label="sale de">←</span>
         <span className="mono muted">{task.baseRef}</span>
-        <span className={`pill ${task.lost ? "lost" : session.claude}`}>{task.lost ? "Worktree perdido" : SESSION_LABEL[session.claude]}</span>
+        <span className={`state-pill ${task.lost ? "lost" : session.claude}`}><i className="dot" />{task.lost ? "Worktree perdido" : SESSION_LABEL[session.claude]}</span>
       </div>
 
       <div className="th-git">
@@ -58,7 +61,7 @@ export function TaskHeader({ task, busy, claudeAvailable, onStart, onResume, onS
         ) : (
           <span className="muted">Sin estado git</span>
         )}
-        <button className="link-btn" onClick={onRefresh}>Actualizar</button>
+        <button className="icon-btn sm" onClick={onRefresh} aria-label="Actualizar estado git" title="Actualizar"><RefreshCw size={13} /></button>
       </div>
 
       <div className="th-actions">
@@ -67,24 +70,24 @@ export function TaskHeader({ task, busy, claudeAvailable, onStart, onResume, onS
         ) : (
           <>
             {!alive && task.sessionId && (
-              <button className="btn primary" disabled={busy || !claudeAvailable} title={noClaude} onClick={onResume}>Retomar sesión</button>
+              <button className="btn primary" disabled={busy || !claudeAvailable} title={noClaude} onClick={onResume}><RotateCcw size={14} />Retomar sesión</button>
             )}
             {!alive && (
               <button className={task.sessionId ? "btn" : "btn primary"} disabled={busy || !claudeAvailable} title={noClaude} onClick={onStart}>
-                {task.sessionId ? "Nueva sesión" : "Iniciar sesión"}
+                <Play size={14} />{task.sessionId ? "Nueva sesión" : "Iniciar sesión"}
               </button>
             )}
-            {alive && <button className="btn" disabled={busy} onClick={onStop}>Detener</button>}
+            {alive && <button className="btn" disabled={busy} onClick={onStop}><Square size={13} />Detener</button>}
             {alive && (
               <button className="btn" disabled={busy} onClick={onInitialPrompt} title="Escribe en la terminal el prompt de la tarea, sin pulsar Enter">
-                Insertar prompt inicial
+                <TextCursorInput size={14} />Insertar prompt inicial
               </button>
             )}
             <span className="divider" aria-hidden="true" />
-            <button className="btn" disabled={busy} onClick={onPush} title={`git push -u origin ${task.branch}`}>Push</button>
-            <button className="btn" disabled={busy} onClick={onOpenPr} title={`Abre la página para crear el PR contra ${task.prBase}`}>Abrir PR</button>
+            <button className="btn" disabled={busy} onClick={onPush} title={`git push -u origin ${task.branch}`}><ArrowUpFromLine size={14} />Push</button>
+            <button className="btn" disabled={busy} onClick={onOpenPr} title={`Abre la página para crear el PR contra ${task.prBase}`}><GitPullRequest size={14} />Abrir PR</button>
             <span className="spacer" />
-            <button className="btn danger-ghost" disabled={busy} onClick={() => setClosing(true)}>Cerrar tarea</button>
+            <button className="btn danger-ghost" disabled={busy} onClick={() => setClosing(true)}><Trash2 size={14} />Cerrar tarea</button>
           </>
         )}
       </div>

@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 
 /** Diálogo nativo: foco atrapado, Esc cierra y el fondo queda inerte. */
@@ -15,7 +16,7 @@ export function Modal({ title, onClose, children, wide }: { title: string; onClo
       <div className="modal-body">
         <header className="modal-head">
           <h2>{title}</h2>
-          <button className="icon-btn" onClick={onClose} aria-label="Cerrar">×</button>
+          <button className="icon-btn" onClick={onClose} aria-label="Cerrar"><X size={16} /></button>
         </header>
         {children}
       </div>

@@ -19,10 +19,10 @@ interface Props {
 }
 
 const THEME = {
-  background: "#0d151a",
-  foreground: "#dde5e2",
+  background: "#0b0b0e",
+  foreground: "#e4e4e7",
   cursor: "#e9b44c",
-  selectionBackground: "#2c4650",
+  selectionBackground: "#3b3b52",
   black: "#17252c", brightBlack: "#5b7078",
   red: "#e0675f", green: "#4db6a4", yellow: "#e9b44c", blue: "#6aa2d8", magenta: "#b58ad8", cyan: "#58c4d4", white: "#dde5e2",
   brightRed: "#f08a82", brightGreen: "#7fd0c1", brightYellow: "#f3c970", brightBlue: "#8bbbe8", brightMagenta: "#cba6e6", brightCyan: "#85d6e2", brightWhite: "#ffffff",

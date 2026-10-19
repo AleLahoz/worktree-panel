@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "../api/client";
 import type { Branches, Repo } from "../api/types";
@@ -164,7 +165,7 @@ export function NewTaskModal({ repos, defaultTemplate, claudeAvailable, onClose,
               {files.map((f, i) => (
                 <li key={`${f.name}-${i}`} className="chip">
                   <span className="mono">{f.name}</span>
-                  <button type="button" className="icon-btn" aria-label={`Quitar ${f.name}`} onClick={() => setFiles((all) => all.filter((_, j) => j !== i))}>×</button>
+                  <button type="button" className="icon-btn" aria-label={`Quitar ${f.name}`} onClick={() => setFiles((all) => all.filter((_, j) => j !== i))}><X size={12} /></button>
                 </li>
               ))}
             </ul>
