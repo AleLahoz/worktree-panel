@@ -17,9 +17,12 @@ const webRoot = path.resolve(import.meta.dirname, "..", "..", "node_modules", "@
 const g = (cwd: string, ...a: string[]) =>
   execFileSync("git", ["-C", cwd, ...a], { encoding: "utf8" }).trim();
 
-// Repo de prueba: main + develop, worktree T-1 desde develop, doc en .task/
-const root = realpathSync(mkdtempSync(path.join(tmpdir(), "wtp-spike-")));
-const repo = path.join(root, "repo");
+// Repo de prueba (o uno existente pasado como argumento, p. ej. uno cuya confianza ya se aceptó)
+const existing = process.argv[2];
+const root = existing ? "" : realpathSync(mkdtempSync(path.join(tmpdir(), "wtp-spike-")));
+const repo = existing ?? path.join(root, "repo");
+const wt = path.join(repo, ".claude", "worktrees", "T-1");
+if (!existing) {
 mkdirSync(repo);
 execFileSync("git", ["init", "-b", "main", repo]);
 g(repo, "config", "user.email", "t@t.t");
@@ -35,12 +38,17 @@ g(repo, "switch", "main");
 const common = path.resolve(repo, g(repo, "rev-parse", "--git-common-dir"));
 writeFileSync(path.join(common, "info", "exclude"), ".claude/worktrees/\n.task/\n", { flag: "a" });
 g(repo, "worktree", "add", "--no-track", "-b", "feature/T-1", path.join(".claude", "worktrees", "T-1"), "develop");
-const wt = path.join(repo, ".claude", "worktrees", "T-1");
 mkdirSync(path.join(wt, ".task"));
 writeFileSync(path.join(wt, ".task", "notas.md"), "# Notas\nLa palabra secreta es PINGUINO.\n");
 
+}
+
 const sessionId = crypto.randomUUID();
 const claudePath = execFileSync("where", ["claude"], { encoding: "utf8" }).split(/\r?\n/)[0].trim();
+// El panel puede arrancarse desde otra sesión de Claude: no heredar sus marcadores.
+const cleanEnv = Object.fromEntries(
+  Object.entries(process.env).filter(([k]) => !/^(CLAUDECODE$|CLAUDE_CODE_|CLAUDE_PID$)/.test(k)),
+);
 const launch = (mode: "start" | "resume") => {
   const args = ["--worktree", "T-1", ...(mode === "start" ? ["--session-id", sessionId] : ["--resume", sessionId])];
   return claudePath.toLowerCase().endsWith(".cmd")
@@ -71,15 +79,18 @@ wss.on("connection", (ws, req) => {
   if (origin && origin !== `http://127.0.0.1:${PORT}` && origin !== `http://localhost:${PORT}`) return void ws.close();
   const mode = new URL(req.url ?? "", "http://x").searchParams.get("mode") === "resume" ? "resume" : "start";
   const l = launch(mode);
-  const p = pty.spawn(l.file, l.args, { name: "xterm-256color", cols: 120, rows: 30, cwd: repo });
+  const p = pty.spawn(l.file, l.args, { name: "xterm-256color", cols: 120, rows: 30, cwd: repo, env: cleanEnv });
   p.onData((d: string) => ws.send(JSON.stringify({ t: "out", d })));
+  let exited = false;
   p.onExit((e: { exitCode: number }) => {
+    exited = true;
     ws.send(JSON.stringify({ t: "exit", code: e.exitCode }));
     execFile("git", ["-C", wt, "branch", "--show-current"], (_e, out) => console.log(`[${mode}] rama en worktree: ${out.trim()}`));
     execFile("git", ["-C", repo, "worktree", "list", "--porcelain"], (_e, out) => console.log(out));
   });
   ws.on("message", (m) => {
     const msg = JSON.parse(String(m));
+    if (exited) return;
     if (msg.t === "in") p.write(msg.d);
     else if (msg.t === "resize") p.resize(msg.cols, msg.rows);
   });
