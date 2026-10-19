@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>pty spike</title>
+<link rel="stylesheet" href="/xterm.css" />
+<style>html,body,#t{height:100%;margin:0;background:#111}</style>
+</head>
+<body>
+<div id="t"></div>
+<script src="/xterm.js"></script>
+<script src="/fit.js"></script>
+<script>
+  const mode = new URLSearchParams(location.search).get("mode") || "start";
+  const term = new Terminal({ fontSize: 14, theme: { background: "#111" } });
+  const fit = new FitAddon.FitAddon();
+  term.loadAddon(fit);
+  term.open(document.getElementById("t"));
+  fit.fit();
+  const ws = new WebSocket(`ws://${location.host}/ws?mode=${mode}`);
+  const sendResize = () => ws.readyState === 1 && ws.send(JSON.stringify({ t: "resize", cols: term.cols, rows: term.rows }));
+  ws.onopen = sendResize;
+  ws.onmessage = (e) => {
+    const m = JSON.parse(e.data);
+    if (m.t === "out") term.write(m.d);
+    else if (m.t === "exit") term.write(`\r\n[proceso terminado, código ${m.code}]\r\n`);
+  };
+  term.onData((d) => ws.send(JSON.stringify({ t: "in", d })));
+  addEventListener("resize", () => { fit.fit(); sendResize(); });
+</script>
+</body>
+</html>
