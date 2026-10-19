@@ -69,6 +69,7 @@ export interface AppConfig {
   shellPath: string;
   initialPromptTemplate: string;
   defaultBranchTemplate: string;
+  claudeAttribution: boolean;
 }
 
 export interface DocInfo {

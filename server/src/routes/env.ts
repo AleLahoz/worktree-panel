@@ -17,6 +17,7 @@ const configPatch = z
     shellPath: z.string().min(1),
     initialPromptTemplate: z.string().min(1),
     defaultBranchTemplate: z.string().min(1),
+    claudeAttribution: z.boolean(),
   })
   .partial();
 

@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readdir } from "node:fs/promises";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { AppConfig } from "../config.js";
@@ -74,6 +74,7 @@ export class SessionService {
     private store: TaskStore,
     private getConfig: () => Promise<AppConfig>,
     private timings: SessionTimings = DEFAULT_TIMINGS,
+    private dataDir?: string,
   ) {}
 
   states(taskId: string, task?: Task): SessionStates {
@@ -94,9 +95,18 @@ export class SessionService {
     throw new AppError(424, "claude_not_found", "Claude Code no está instalado o no está en el PATH (configura la ruta en Ajustes)");
   }
 
+  /** Sin atribución: --settings con un fichero (el JSON inline no sobrevive al entrecomillado de cmd.exe). */
+  private async settingsArgs(): Promise<string[]> {
+    if (!this.dataDir || (await this.getConfig()).claudeAttribution) return [];
+    const file = path.join(this.dataDir, "claude-settings.json");
+    await mkdir(this.dataDir, { recursive: true });
+    await writeFile(file, JSON.stringify({ attribution: { commit: "", pr: "" }, includeCoAuthoredBy: false }));
+    return ["--settings", file];
+  }
+
   private async spawnClaude(task: Task, args: string[]): Promise<ManagedPty> {
     if (this.ptys.isAlive(task.id, "claude")) throw new AppError(409, "session_running", "La sesión de Claude ya está en marcha");
-    const cmd = claudeCommand(await this.resolveClaudePath(), args);
+    const cmd = claudeCommand(await this.resolveClaudePath(), [...(await this.settingsArgs()), ...args]);
     // cwd = worktree y sin --worktree: con --worktree Claude borra el worktree (y .task/) al salir sin cambios y,
     // al retomar, lo recrea en otra rama. Verificado en la Fase 0.
     return this.ptys.spawn(task.id, "claude", { ...cmd, cwd: task.worktreePath, env: cleanEnv() });

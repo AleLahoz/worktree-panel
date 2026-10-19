@@ -27,7 +27,7 @@ export function createContext(dataDir: string, port: number, options: ContextOpt
   const store = new TaskStore(dataDir);
   const service = new TaskService(store);
   const ptys = new PtyManager(options.pty);
-  const sessions = new SessionService(ptys, store, () => loadConfig(dataDir), options.timings);
+  const sessions = new SessionService(ptys, store, () => loadConfig(dataDir), options.timings, dataDir);
   service.onBeforeClose = (task) => sessions.killTask(task.id);
   return { port, dataDir, store, service, ptys, sessions, docs: new DocService(options.opener) };
 }

@@ -8,6 +8,8 @@ export interface AppConfig {
   shellPath: string;
   initialPromptTemplate: string;
   defaultBranchTemplate: string;
+  /** false = Claude Code no añade "Co-Authored-By" ni la línea "Generated with" en commits y PR. */
+  claudeAttribution: boolean;
 }
 
 export const DEFAULT_PROMPT_TEMPLATE = `Vas a trabajar la tarea {key}{title_suffix}.
@@ -21,6 +23,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   shellPath: "powershell.exe",
   initialPromptTemplate: DEFAULT_PROMPT_TEMPLATE,
   defaultBranchTemplate: "feature/{key}",
+  claudeAttribution: true,
 };
 
 /** Carpeta de datos: %APPDATA%\worktree-panel en Windows, ~/.worktree-panel en el resto. */

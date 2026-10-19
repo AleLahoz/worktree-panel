@@ -156,6 +156,10 @@ function ConfigForm({ config, run, onSaved }: { config: AppConfig; run: Run; onS
         Prompt inicial <span className="optional">(variables: {"{key} {title_suffix} {branch} {base} {doc_refs}"})</span>
         <textarea rows={6} value={c.initialPromptTemplate} onChange={(e) => setC({ ...c, initialPromptTemplate: e.target.value })} />
       </label>
+      <label className="row">
+        <input type="checkbox" checked={c.claudeAttribution} onChange={(e) => setC({ ...c, claudeAttribution: e.target.checked })} />
+        Que Claude figure como coautor en commits y PR <span className="optional">(Co-Authored-By y "Generated with Claude Code"; se aplica a las sesiones que se inicien desde ahora)</span>
+      </label>
       <div className="modal-actions"><button className="btn primary">Guardar ajustes</button></div>
     </form>
   );
