@@ -15,7 +15,7 @@ No hace falta compilador ni Visual Studio Build Tools: `node-pty` se instala con
 ## Instalación y arranque
 
 ```powershell
-git clone <url-del-repositorio> worktree-panel
+git clone https://github.com/AleLahoz/worktree-panel.git
 cd worktree-panel
 npm install
 npm start
@@ -76,3 +76,7 @@ worktree-panel-spec.md   especificación original (con los cambios que impuso la
 ## Fuera del alcance (por ahora)
 
 Integración con la API de Jira, creación de PR por API, UI propia con el Agent SDK, autenticación y despliegue remoto.
+
+## Licencia
+
+[MIT](LICENSE)
