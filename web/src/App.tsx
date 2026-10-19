@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "./api/client";
+import { api, ApiError } from "./api/client";
 import type { AppConfig, DocInfo, EnvCheck, Repo, TaskView } from "./api/types";
 import { DocsPanel } from "./components/DocsPanel";
 import { DropOverlay } from "./components/DropOverlay";
+import { GitPanel } from "./components/GitPanel";
+import { Modal } from "./components/Modal";
 import { NewTaskModal } from "./components/NewTaskModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { Sidebar } from "./components/Sidebar";
 import { TaskHeader } from "./components/TaskHeader";
 import { TerminalView } from "./components/TerminalView";
 
-type Tab = "claude" | "shell" | "docs";
+type Tab = "claude" | "shell" | "docs" | "git";
 const MAX_DOC_BYTES = 50 * 1024 * 1024;
 
 interface Notice {
@@ -37,6 +39,7 @@ export function App() {
   const [dragging, setDragging] = useState(false);
   /** Al incrementarlo, la terminal de Claude recupera el foco (tras insertar texto desde la UI). */
   const [focusClaude, setFocusClaude] = useState(0);
+  const [pushResult, setPushResult] = useState<{ ok: boolean; text: string } | null>(null);
   const dragDepth = useRef(0);
   const filterRef = useRef<HTMLInputElement>(null);
 
@@ -117,6 +120,34 @@ export function App() {
       fail(e);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const push = async () => {
+    if (!task) return;
+    setBusy(true);
+    try {
+      const { output } = await api.push(task.id);
+      setPushResult({ ok: true, text: output || "Rama subida." });
+    } catch (e) {
+      const out = e instanceof ApiError ? (e.details?.output as string | undefined) : undefined;
+      // El fallo del push se enseña entero (es la salida de git); el resto, como aviso.
+      if (out) setPushResult({ ok: false, text: out });
+      else fail(e);
+    } finally {
+      setBusy(false);
+      refresh();
+    }
+  };
+
+  /** El destino del PR es la base de la tarea (p. ej. develop), no la rama principal del repo. */
+  const openPr = async () => {
+    if (!task) return;
+    try {
+      const { url } = await api.prUrl(task.id);
+      window.open(url, "_blank", "noopener");
+    } catch (e) {
+      fail(e);
     }
   };
 
@@ -250,6 +281,8 @@ export function App() {
               onResume={() => act(() => api.resumeSession(task.id), "claude")}
               onStop={() => act(() => api.stopSession(task.id))}
               onInitialPrompt={() => act(async () => { await api.initialPrompt(task.id); setTab("claude"); setFocusClaude((n) => n + 1); })}
+              onPush={push}
+              onOpenPr={openPr}
               onClose={async (opts) => {
                 await api.closeTask(task.id, opts);
                 setSelectedId(undefined);
@@ -264,6 +297,9 @@ export function App() {
               <button role="tab" aria-selected={tab === "shell"} className={tab === "shell" ? "tab active" : "tab"} onClick={() => setTab("shell")}>Shell</button>
               <button role="tab" aria-selected={tab === "docs"} className={tab === "docs" ? "tab active" : "tab"} onClick={() => setTab("docs")}>
                 Documentos{docs.length ? ` (${docs.length})` : ""}
+              </button>
+              <button role="tab" aria-selected={tab === "git"} className={tab === "git" ? "tab active" : "tab"} onClick={() => setTab("git")}>
+                Git{task.status?.changedFiles ? ` (${task.status.changedFiles})` : ""}
               </button>
             </div>
 
@@ -286,6 +322,20 @@ export function App() {
                     onStatus={refresh}
                   />
                 ))}
+                {tab === "git" && (
+                  <GitPanel
+                    task={task}
+                    active
+                    onSavePrUrl={async (url) => {
+                      try {
+                        await api.patchTask(task.id, { prUrl: url });
+                        await refresh();
+                      } catch (e) {
+                        fail(e);
+                      }
+                    }}
+                  />
+                )}
                 {tab === "docs" && (
                   <DocsPanel
                     docs={docs}
@@ -316,6 +366,18 @@ export function App() {
           {notice.action && <button className="btn" onClick={notice.action.run}>{notice.action.label}</button>}
           <button className="icon-btn" onClick={() => setNotice(null)} aria-label="Descartar">×</button>
         </div>
+      )}
+
+      {pushResult && (
+        <Modal title={pushResult.ok ? "Push completado" : "El push ha fallado"} onClose={() => setPushResult(null)} wide>
+          <div className="stack">
+            <pre className={`output${pushResult.ok ? "" : " bad"}`}>{pushResult.text}</pre>
+            <div className="modal-actions">
+              {pushResult.ok && <button className="btn" onClick={() => { setPushResult(null); openPr(); }}>Abrir PR</button>}
+              <button className="btn primary" onClick={() => setPushResult(null)}>Cerrar</button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {modal === "new" && (

@@ -1,4 +1,4 @@
-import type { AppConfig, Branches, BranchSpec, DocInfo, EnvCheck, Repo, SavedDoc, SessionStates, Task, TaskView } from "./types";
+import type { AppConfig, Branches, BranchSpec, DocInfo, EnvCheck, FileChange, FileDiff, Repo, SavedDoc, SessionStates, Task, TaskView } from "./types";
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public details?: any) {
@@ -40,6 +40,12 @@ export const api = {
   closeTask: (id: string, opts: { force?: boolean; deleteBranch?: boolean }) =>
     post<{ summary: { dirty: number; unpushed: number }; branchDeleted: boolean }>(`/tasks/${id}/close`, opts),
   archiveTask: (id: string) => post<void>(`/tasks/${id}/archive`),
+
+  patchTask: (id: string, patch: { title?: string; jiraUrl?: string; prUrl?: string }) => request<Task>("PATCH", `/tasks/${id}`, patch),
+  gitFiles: (id: string) => get<FileChange[]>(`/tasks/${id}/git/files`),
+  gitDiff: (id: string, file: string) => get<FileDiff>(`/tasks/${id}/git/diff?file=${encodeURIComponent(file)}`),
+  push: (id: string) => post<{ output: string }>(`/tasks/${id}/git/push`),
+  prUrl: (id: string) => get<{ url: string; provider: string }>(`/tasks/${id}/pr-url`),
 
   docs: (id: string) => get<DocInfo[]>(`/tasks/${id}/docs`),
   uploadDocs: (id: string, files: File[]) => {

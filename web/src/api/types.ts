@@ -80,3 +80,19 @@ export interface DocInfo {
 export interface SavedDoc extends DocInfo {
   warning?: string;
 }
+
+export interface FileChange {
+  path: string;
+  orig?: string;
+  code: string;
+  kind: "untracked" | "modified" | "added" | "deleted" | "renamed" | "conflict";
+  staged: boolean;
+  unstaged: boolean;
+}
+
+export interface FileDiff {
+  file: string;
+  staged: string;
+  unstaged: string;
+  truncated: boolean;
+}

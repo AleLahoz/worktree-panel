@@ -3,6 +3,7 @@ import path from "node:path";
 import { AppError } from "../errors.js";
 import type { GitStatus, Repo, Task } from "../types.js";
 import { GitService, type BranchMode } from "./GitService.js";
+import { buildPrUrl } from "./PrUrl.js";
 import type { TaskStore } from "./TaskStore.js";
 
 export interface CreateTaskInput {
@@ -82,6 +83,26 @@ export class TaskService {
 
   async status(task: Task): Promise<GitStatus> {
     return GitService.status(task.worktreePath, task.baseRef);
+  }
+
+  /**
+   * Sube la rama de la tarea. Nunca se sube la documentación: si .task/ está en el índice, se bloquea.
+   */
+  async push(task: Task): Promise<string> {
+    if (!(await this.worktreeExists(task))) throw new AppError(409, "worktree_lost", "El worktree de la tarea no existe");
+    const tracked = await GitService.trackedTaskFiles(task.worktreePath);
+    if (tracked.length) {
+      throw new AppError(409, "task_files_tracked", "Hay ficheros de .task/ en el índice de git; la documentación nunca debe subirse. Quítalos con `git rm --cached` y vuelve a intentarlo.", { files: tracked });
+    }
+    return GitService.push(task.worktreePath, task.branch);
+  }
+
+  /** URL para crear el PR: remoto `origin`, destino = base de la tarea. */
+  async prUrl(task: Task) {
+    const repo = await this.store.getRepo(task.repoId);
+    const remote = await GitService.remoteUrl(repo.path);
+    if (!remote) throw new AppError(422, "no_remote", "El repo no tiene un remoto `origin`");
+    return buildPrUrl({ remote, branch: task.branch, base: task.prBase, template: repo.prUrlTemplate });
   }
 
   /** ¿Existe aún el worktree de la tarea según git? */

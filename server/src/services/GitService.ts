@@ -52,6 +52,28 @@ export interface Branches {
   remote: string[];
 }
 
+export type ChangeKind = "untracked" | "modified" | "added" | "deleted" | "renamed" | "conflict";
+
+export interface FileChange {
+  path: string;
+  /** Ruta anterior (renombrados). */
+  orig?: string;
+  /** Código de dos letras de `git status --porcelain` (XY). */
+  code: string;
+  kind: ChangeKind;
+  staged: boolean;
+  unstaged: boolean;
+}
+
+export interface FileDiff {
+  file: string;
+  staged: string;
+  unstaged: string;
+  truncated: boolean;
+}
+
+const MAX_DIFF_CHARS = 400_000;
+
 export type BranchMode = { mode: "new"; branch: string; base: string } | { mode: "existing"; branch: string; base?: string };
 
 const norm = (p: string) => path.resolve(p).toLowerCase();
@@ -208,7 +230,7 @@ export const GitService = {
 
   async status(worktree: string, baseRef: string): Promise<GitStatus> {
     const branch = (await run(worktree, ["branch", "--show-current"])).stdout;
-    const porcelain = (await run(worktree, ["status", "--porcelain=v1"])).stdout;
+    const porcelain = (await run(worktree, ["status", "--porcelain=v1", "-uall"])).stdout;
     const changedFiles = porcelain ? porcelain.split(/\r?\n/).length : 0;
     const count = async (range: string) => {
       const r = await run(worktree, ["rev-list", "--count", range]);
@@ -220,6 +242,60 @@ export const GitService = {
     const log = (await run(worktree, ["log", "-1", "--format=%h%x09%s%x09%cr"])).stdout;
     const [hash, subject, relative] = log.split("\t");
     return { branch, baseRef, changedFiles, unpushed, behindBase, hasUpstream, lastCommit: hash ? { hash, subject, relative } : undefined };
+  },
+
+  /** Ficheros con cambios (índice, directorio de trabajo y sin seguimiento). */
+  async changes(worktree: string): Promise<FileChange[]> {
+    // -uall: lista cada fichero sin seguimiento en vez de colapsar el directorio entero.
+    const out = (await run(worktree, ["status", "--porcelain=v1", "-uall", "-z"])).stdout;
+    const tokens = out.split("\0").filter(Boolean);
+    const changes: FileChange[] = [];
+    for (let i = 0; i < tokens.length; i++) {
+      const entry = tokens[i];
+      if (entry.length < 4) continue;
+      const code = entry.slice(0, 2);
+      const change: FileChange = { path: entry.slice(3), code, kind: "modified", staged: false, unstaged: false };
+      if (code[0] === "R" || code[0] === "C") change.orig = tokens[++i];
+      const [x, y] = code;
+      if (code === "??") change.kind = "untracked";
+      else if (x === "U" || y === "U" || code === "AA" || code === "DD") change.kind = "conflict";
+      else if (x === "R" || x === "C") change.kind = "renamed";
+      else if (x === "A") change.kind = "added";
+      else if (x === "D" || y === "D") change.kind = "deleted";
+      change.staged = x !== " " && x !== "?";
+      change.unstaged = y !== " " && y !== "?";
+      changes.push(change);
+    }
+    return changes.sort((a, b) => a.path.localeCompare(b.path));
+  },
+
+  /**
+   * Diff de un fichero con cambios: lo staged (`git diff --cached`), lo no staged (`git diff`)
+   * y, si es nuevo, su contenido completo como adición. Solo acepta ficheros que aparecen en `changes()`.
+   */
+  async diff(worktree: string, file: string): Promise<FileDiff> {
+    const change = (await this.changes(worktree)).find((c) => c.path === file);
+    if (!change) throw new AppError(404, "file_not_changed", `${file} no tiene cambios`);
+    const cap = (text: string) => (text.length > MAX_DIFF_CHARS ? { text: text.slice(0, MAX_DIFF_CHARS), cut: true } : { text, cut: false });
+
+    let staged = { text: "", cut: false };
+    let unstaged = { text: "", cut: false };
+    if (change.kind === "untracked") {
+      // --no-index sale con código 1 cuando hay diferencias: es lo normal.
+      unstaged = cap((await run(worktree, ["diff", "--no-index", "--no-color", "--", "/dev/null", file])).stdout);
+    } else {
+      staged = cap((await run(worktree, ["diff", "--cached", "--no-color", "--", file])).stdout);
+      unstaged = cap((await run(worktree, ["diff", "--no-color", "--", file])).stdout);
+    }
+    return { file, staged: staged.text, unstaged: unstaged.text, truncated: staged.cut || unstaged.cut };
+  },
+
+  /** `git push -u origin <rama>`; devuelve la salida (git escribe el progreso en stderr). */
+  async push(worktree: string, branch: string): Promise<string> {
+    const r = await run(worktree, ["push", "-u", "origin", branch]);
+    const output = [r.stdout, r.stderr].filter(Boolean).join("\n");
+    if (r.code !== 0) throw new AppError(502, "push_failed", `git push falló:\n${output}`, { output });
+    return output;
   },
 
   /** Ficheros de .task/ presentes en el índice (nunca deben subirse). */

@@ -11,12 +11,14 @@ interface Props {
   onResume: () => void;
   onStop: () => void;
   onInitialPrompt: () => void;
+  onPush: () => void;
+  onOpenPr: () => void;
   onClose: (opts: { force: boolean; deleteBranch: boolean }) => Promise<void>;
   onArchive: () => void;
   onRefresh: () => void;
 }
 
-export function TaskHeader({ task, busy, claudeAvailable, onStart, onResume, onStop, onInitialPrompt, onClose, onArchive, onRefresh }: Props) {
+export function TaskHeader({ task, busy, claudeAvailable, onStart, onResume, onStop, onInitialPrompt, onPush, onOpenPr, onClose, onArchive, onRefresh }: Props) {
   const [closing, setClosing] = useState(false);
   const { status, session } = task;
   const alive = session.claude === "running" || session.claude === "waiting";
@@ -78,6 +80,9 @@ export function TaskHeader({ task, busy, claudeAvailable, onStart, onResume, onS
                 Insertar prompt inicial
               </button>
             )}
+            <span className="divider" aria-hidden="true" />
+            <button className="btn" disabled={busy} onClick={onPush} title={`git push -u origin ${task.branch}`}>Push</button>
+            <button className="btn" disabled={busy} onClick={onOpenPr} title={`Abre la página para crear el PR contra ${task.prBase}`}>Abrir PR</button>
             <span className="spacer" />
             <button className="btn danger-ghost" disabled={busy} onClick={() => setClosing(true)}>Cerrar tarea</button>
           </>

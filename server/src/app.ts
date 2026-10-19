@@ -6,6 +6,7 @@ import multipart from "@fastify/multipart";
 import { MAX_DOC_BYTES } from "./services/DocService.js";
 import { registerDocRoutes } from "./routes/docs.js";
 import { registerEnvRoutes } from "./routes/env.js";
+import { registerGitRoutes } from "./routes/git.js";
 import { registerRepoRoutes } from "./routes/repos.js";
 import { registerSessionRoutes } from "./routes/sessions.js";
 import { registerTaskRoutes } from "./routes/tasks.js";
@@ -51,6 +52,7 @@ export function buildApp(ctx: AppContext): FastifyInstance {
     registerTaskRoutes(api, ctx);
     registerSessionRoutes(api, ctx);
     registerDocRoutes(api, ctx);
+    registerGitRoutes(api, ctx);
   }, { prefix: "/api" });
 
   return app;
