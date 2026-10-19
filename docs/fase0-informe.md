@@ -7,8 +7,8 @@ Entorno: Windows 11, git 2.53.0, Claude Code 2.1.303 (`C:\Users\aleja\.local\bin
 | # | Supuesto | Resultado | Notas |
 |---|---|---|---|
 | 1 | Flag `--session-id` | OK | También `--worktree` y `--resume` en `claude --help`. |
-| 2 | `claude --worktree <clave>` reutiliza worktree existente | **PARCIAL / PROBLEMA** | Reutiliza el worktree y la rama `feature/T-1` (probado: `git branch --show-current` = `feature/T-1`). Pero ver "Hallazgos graves". |
-| 3 | `--worktree <clave> --resume <id>` | **FALLO de diseño** | La conversación se retoma (recordó el dato), pero el worktree se recrea en otra rama. Ver abajo. |
+| 2 | `claude --worktree <clave>` reutiliza worktree existente | **PROBLEMA** | Reutiliza worktree y rama, pero borra el worktree al salir. **Plan B OK** (ver abajo). |
+| 3 | `--worktree <clave> --resume <id>` | **FALLO** | Retoma la conversación pero recrea el worktree en otra rama. **Plan B OK** (ver abajo). |
 | 4 | `@.task/x.md` resuelto | OK | Para `.md`. PDF sin probar. |
 | 5 | node-pty en Windows con claude | OK | `node-pty` oficial, sin Build Tools. |
 | 6 | `info/exclude` común aplica a worktrees | OK | `git status` limpio con `.task/x.md`. |
@@ -22,7 +22,15 @@ Entorno: Windows 11, git 2.53.0, Claude Code 2.1.303 (`C:\Users\aleja\.local\bin
 2. **Al salir de Claude (`/exit`), si no hay cambios rastreados, borra el worktree entero** ("Removing worktree… Worktree removed (no changes)"), **incluida `.task/`** (ignorada por git, no cuenta como cambio). La rama se conserva. Se pierde toda la documentación de la tarea.
 3. **`--worktree T-1 --resume <id>` tras ese borrado recrea `T-1` en una rama nueva `worktree-T-1` desde `main`** (no `feature/T-1` ni develop) y bloqueado (`locked`). Se rompe el requisito de la rama/base elegidas.
 
-Plan B de la spec (§15 puntos 2 y 3), **sin probar aún** pero que evita los tres problemas: lanzar `claude --session-id <id>` / `claude --resume <id>` con cwd = el worktree, sin `--worktree`. Hay que verificar que el resume funciona desde ahí (la spec §9.2 advierte que puede rechazarse) y que no se borra nada al salir.
+## Plan B verificado (usar este diseño)
+
+Lanzar `claude --session-id <id>` y `claude --resume <id>` **con cwd = el worktree y sin `--worktree`** (el panel crea el worktree con `git worktree add`). Probado en el navegador con un worktree `T-2` creado desde `develop`:
+- Arranca sin diálogo de confianza (hereda la del repo padre; basta con haberla aceptado una vez en la raíz).
+- Lee `@.task/notas.md` (`PINGUINO`) y la rama es `feature/T-2`.
+- Tras `/exit` el worktree y `.task/notas.md` **siguen ahí**.
+- `--resume <id>` desde el mismo cwd recupera la conversación (recordó `7342`) y sigue en `feature/T-2`.
+
+Consecuencia para la spec: cambiar §RF4/§9.2 a "cwd = worktree, sin `--worktree`". Ya no se necesita el paso de confianza previo con `claude` a secas, pero conviene avisar si la raíz del repo no es de confianza.
 
 ## Otros hallazgos
 - **Entorno heredado**: si el panel se arranca desde una sesión de Claude, el pty hereda `CLAUDECODE`, `CLAUDE_CODE_*` y `CLAUDE_PID`, y Claude desactiva los transcripts (imposible `--resume`). `SessionService` debe filtrarlas al lanzar.

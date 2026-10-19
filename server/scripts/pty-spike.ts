@@ -21,7 +21,8 @@ const g = (cwd: string, ...a: string[]) =>
 const existing = process.argv[2];
 const root = existing ? "" : realpathSync(mkdtempSync(path.join(tmpdir(), "wtp-spike-")));
 const repo = existing ?? path.join(root, "repo");
-const wt = path.join(repo, ".claude", "worktrees", "T-1");
+const KEY = process.argv[3] ?? "T-1";
+const wt = path.join(repo, ".claude", "worktrees", KEY);
 if (!existing) {
 mkdirSync(repo);
 execFileSync("git", ["init", "-b", "main", repo]);
@@ -50,7 +51,8 @@ const cleanEnv = Object.fromEntries(
   Object.entries(process.env).filter(([k]) => !/^(CLAUDECODE$|CLAUDE_CODE_|CLAUDE_PID$)/.test(k)),
 );
 const launch = (mode: "start" | "resume") => {
-  const args = ["--worktree", "T-1", ...(mode === "start" ? ["--session-id", sessionId] : ["--resume", sessionId])];
+  // Plan B: sin --worktree; el cwd del proceso es el worktree.
+  const args = mode === "start" ? ["--session-id", sessionId] : ["--resume", sessionId];
   return claudePath.toLowerCase().endsWith(".cmd")
     ? { file: "cmd.exe", args: ["/d", "/s", "/c", claudePath, ...args] }
     : { file: claudePath, args };
@@ -79,7 +81,7 @@ wss.on("connection", (ws, req) => {
   if (origin && origin !== `http://127.0.0.1:${PORT}` && origin !== `http://localhost:${PORT}`) return void ws.close();
   const mode = new URL(req.url ?? "", "http://x").searchParams.get("mode") === "resume" ? "resume" : "start";
   const l = launch(mode);
-  const p = pty.spawn(l.file, l.args, { name: "xterm-256color", cols: 120, rows: 30, cwd: repo, env: cleanEnv });
+  const p = pty.spawn(l.file, l.args, { name: "xterm-256color", cols: 120, rows: 30, cwd: wt, env: cleanEnv });
   p.onData((d: string) => ws.send(JSON.stringify({ t: "out", d })));
   let exited = false;
   p.onExit((e: { exitCode: number }) => {
