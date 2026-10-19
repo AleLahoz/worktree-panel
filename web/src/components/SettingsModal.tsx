@@ -50,6 +50,8 @@ export function SettingsModal({ repos, onClose, onChanged }: Props) {
           {env?.recommendations.map((r) => <p key={r} className="callout">{r}</p>)}
         </section>
 
+        <Notifications />
+
         <section className="stack">
           <h3>Repositorios</h3>
           <ul className="repo-settings">
@@ -71,6 +73,29 @@ export function SettingsModal({ repos, onClose, onChanged }: Props) {
 }
 
 type Run = (fn: () => Promise<unknown>, ok: string) => Promise<void>;
+
+/** Avisos del navegador cuando una tarea pasa a "Esperando" y no es la que estás viendo. */
+function Notifications() {
+  const supported = "Notification" in window;
+  const [perm, setPerm] = useState<NotificationPermission>(supported ? Notification.permission : "denied");
+  return (
+    <section className="stack">
+      <h3>Notificaciones</h3>
+      {!supported ? (
+        <p className="muted">Este navegador no admite notificaciones.</p>
+      ) : perm === "granted" ? (
+        <p className="ok">Activadas: te avisaremos cuando una tarea espere tu respuesta.</p>
+      ) : perm === "denied" ? (
+        <p className="muted">Están bloqueadas. Actívalas desde los permisos del sitio en el navegador.</p>
+      ) : (
+        <div className="row between">
+          <p className="muted">Recibe un aviso cuando Claude espere tu respuesta en una tarea que no tienes abierta.</p>
+          <button className="btn" onClick={() => Notification.requestPermission().then(setPerm)}>Activar notificaciones</button>
+        </div>
+      )}
+    </section>
+  );
+}
 
 function RepoRow({ repo, run }: { repo: Repo; run: Run }) {
   const [base, setBase] = useState(repo.defaultBase ?? "");

@@ -1,4 +1,4 @@
-import type { AppConfig, Branches, BranchSpec, DocInfo, EnvCheck, FileChange, FileDiff, Repo, SavedDoc, SessionStates, Task, TaskView } from "./types";
+import type { AppConfig, Branches, BranchSpec, DocInfo, EnvCheck, FileChange, FileDiff, OrphanWorktree, Repo, SavedDoc, SessionStates, Task, TaskView } from "./types";
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public details?: any) {
@@ -40,6 +40,8 @@ export const api = {
   closeTask: (id: string, opts: { force?: boolean; deleteBranch?: boolean }) =>
     post<{ summary: { dirty: number; unpushed: number }; branchDeleted: boolean }>(`/tasks/${id}/close`, opts),
   archiveTask: (id: string) => post<void>(`/tasks/${id}/archive`),
+  reconcile: () => get<{ lost: Task[]; orphans: OrphanWorktree[] }>("/reconcile"),
+  importTask: (data: { repoId: string; key: string; baseRef?: string }) => post<Task>("/tasks/import", data),
 
   patchTask: (id: string, patch: { title?: string; jiraUrl?: string; prUrl?: string }) => request<Task>("PATCH", `/tasks/${id}`, patch),
   gitFiles: (id: string) => get<FileChange[]>(`/tasks/${id}/git/files`),

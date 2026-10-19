@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { Repo, TaskView } from "../api/types";
+import type { OrphanWorktree, Repo, TaskView } from "../api/types";
 
 interface Props {
   repos: Repo[];
@@ -11,11 +11,13 @@ interface Props {
   onNew: () => void;
   onSettings: () => void;
   filterRef: React.RefObject<HTMLInputElement | null>;
+  orphans: OrphanWorktree[];
+  onImport: (o: OrphanWorktree) => void;
 }
 
 export const SESSION_LABEL = { none: "Sin sesión", running: "En ejecución", waiting: "Esperando", stopped: "Detenida" } as const;
 
-export function Sidebar({ repos, tasks, selectedId, filter, onFilter, onSelect, onNew, onSettings, filterRef }: Props) {
+export function Sidebar({ repos, tasks, selectedId, filter, onFilter, onSelect, onNew, onSettings, filterRef, orphans, onImport }: Props) {
   const groups = useMemo(() => {
     const q = filter.trim().toLowerCase();
     const match = (t: TaskView) => !q || [t.key, t.title, t.branch].some((s) => s?.toLowerCase().includes(q));
@@ -61,6 +63,20 @@ export function Sidebar({ repos, tasks, selectedId, filter, onFilter, onSelect, 
             </ul>
           </section>
         ))}
+
+        {orphans.length > 0 && (
+          <section className="repo orphans">
+            <h3 className="repo-name">Worktrees sin tarea</h3>
+            <ul className="plain">
+              {orphans.map((o) => (
+                <li key={o.path} className="orphan">
+                  <span className="mono" title={o.path}>{o.key}{o.branch ? ` · ${o.branch}` : ""}</span>
+                  <button className="link-btn" onClick={() => onImport(o)}>Importar como tarea</button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </nav>
 
       <div className="sidebar-bottom">

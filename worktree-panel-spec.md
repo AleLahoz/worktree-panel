@@ -130,12 +130,12 @@ Errores a contemplar: la rama ya existe, el directorio del worktree ya existe, l
 
 - **Iniciar sesión**:
   - Generar `sessionId` (UUID v4) y guardarlo en la tarea.
-  - Lanzar en pseudo-terminal, con **cwd = raíz del checkout principal del repo** (no el worktree):
-    `claude --worktree <clave> --session-id <sessionId>`
-    Como el directorio `.claude/worktrees/<clave>` ya existe, Claude Code lo reutiliza con la rama y la base elegidas.
+  - Lanzar en pseudo-terminal, con **cwd = el worktree de la tarea** y **sin `--worktree`**:
+    `claude --session-id <sessionId>`
+    > **Cambio respecto a la versión inicial (Fase 0).** Con `--worktree`, Claude Code borra el directorio del worktree al salir si no hay cambios rastreados (incluida `.task/`, que git ignora), y al retomar con `--worktree … --resume` lo recrea en una rama nueva desde la principal. Lanzando desde el propio worktree no ocurre nada de eso y la rama/base elegidas se respetan. Ver `docs/fase0-informe.md`.
   - Cuando la terminal muestre la primera salida y quede estable ~1,5 s, escribir el **prompt inicial** (plantilla abajo) **sin** Enter. El usuario lo revisa y pulsa Enter. No pasar el prompt como argumento de línea de comandos (evita problemas de escapado en Windows).
 - **Retomar sesión** (si la tarea tiene `sessionId` y no hay proceso vivo):
-  `claude --worktree <clave> --resume <sessionId>` (cwd = raíz del repo). Si falla, ofrecer "Iniciar nueva sesión" manteniendo el worktree.
+  `claude --resume <sessionId>` (cwd = el worktree). Si falla, ofrecer "Iniciar nueva sesión" manteniendo el worktree.
 - **Detener sesión**: enviar `Ctrl+C` dos veces; si sigue vivo a los 5 s, matar el proceso. No borra nada.
 - Varias sesiones vivas a la vez (una por tarea). Cambiar de tarea en la UI **no** detiene procesos.
 - **Reconexión**: el backend guarda un buffer circular de la salida de cada pty (~1 MB o 5.000 líneas). Al recargar la página o reabrir la tarea, se reenvía el buffer para que la terminal se vea como estaba.
@@ -367,9 +367,11 @@ Estado en memoria (no persistido): ptys vivas por tarea `{ claude?: PtyHandle; s
 ## 9. Detalles de implementación delicados
 
 1. **Lanzar Claude desde node-pty en Windows**: resolver `claudePath` con `where claude`. Si es `.cmd`, lanzar con `cmd.exe /d /s /c "<ruta>" <args>`; si es `.exe`, directamente. Pasar `cols/rows` reales del `fitAddon` y reenviar `resize`.
-2. **cwd del proceso de Claude = raíz del repo principal**, nunca el worktree (según la documentación de Claude Code, retomar desde dentro de un worktree creado con `git worktree add` puede rechazarse).
-3. **Confianza del workspace**: la primera vez que se usa Claude en un repo aparece el diálogo de confianza. Se ve y se responde en la terminal; no hace falta tratarlo aparte.
-4. **Detección de "listo" para escribir el prompt inicial**: primera salida + 1,5 s sin salida nueva. Si a los 15 s no ha ocurrido, no escribir nada y mostrar un botón "Insertar prompt inicial".
+2. **cwd del proceso de Claude = el worktree de la tarea y sin `--worktree`** (verificado en la Fase 0: `--worktree` borra el worktree al salir sin cambios rastreados y lo recrea en otra rama al retomar; retomar con `--resume` desde el worktree funciona y conserva rama y `.task/`).
+3. **Confianza del workspace**: la primera vez que se usa Claude en un directorio nuevo aparece el diálogo de confianza. Se ve y se responde en la terminal. El prompt inicial **espera** a que se acepte (no se escribe encima del diálogo).
+4. **Detección de "listo" para escribir el prompt inicial**: primera salida + 1,5 s sin salida nueva, y sin el diálogo de confianza en pantalla. Si a los 15 s no ha ocurrido (o 5 min si hay diálogo), no escribir nada; queda el botón "Insertar prompt inicial".
+4b. **Entorno del pty**: no heredar `CLAUDECODE`, `CLAUDE_CODE_*` ni `CLAUDE_PID`. Si el panel se arranca desde otra sesión de Claude, Claude desactiva los transcripts y `--resume` deja de funcionar.
+4c. **Windows y directorios en uso**: tras terminar los procesos de una tarea, Windows tarda un instante en liberar su cwd. El cierre reintenta `git worktree remove` y, si git ya desregistró el worktree pero no pudo borrar el directorio, lo elimina (solo dentro de `.claude/worktrees/`).
 5. **Rutas largas en Windows**: en la Fase 0, comprobar `git config core.longpaths`. Si no está a `true`, mostrar una recomendación en `/env/check` (no cambiarlo automáticamente).
 6. **Dependencias por worktree**: cada worktree es un checkout nuevo (sin `node_modules`, etc.). Lo resuelve `setupCommand` o se le pide a Claude.
 7. **Ficheros ignorados necesarios** (`.env`…): Claude Code copia los que indique `.worktreeinclude` solo cuando crea él el worktree; aquí lo crea el panel. Implementar la misma semántica: si existe `<repo>/.worktreeinclude`, copiar al worktree los ficheros que coincidan **y** estén ignorados por git (`git ls-files --others --ignored --exclude-standard` filtrado por los patrones).
@@ -475,7 +477,7 @@ Estado en memoria (no persistido): ptys vivas por tarea `{ claude?: PtyHandle; s
 8. Arrastro `notas.md` a `PROJ-1` → se guarda en `.task/` y con un clic se inserta `@.task/notas.md` en el prompt.
 9. Push → la rama remota es `feature/PROJ-1`. "Abrir PR" abre la URL con destino `develop`.
 10. Cierro `PROJ-2` con cambios sin commitear → me avisa y exige confirmación; tras confirmar, el worktree desaparece de `git worktree list`.
-11. Desde una terminal normal, `claude --worktree PROJ-1 --resume <sessionId>` (en la raíz del repo) abre la misma tarea: el panel no es imprescindible.
+11. Desde una terminal normal, `claude --resume <sessionId>` (dentro del worktree de la tarea) abre la misma conversación: el panel no es imprescindible.
 
 ---
 

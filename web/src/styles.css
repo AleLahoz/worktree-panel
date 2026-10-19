@@ -212,3 +212,9 @@ h3 { font-size: 14px; }
 .git-pr { display: flex; gap: 12px; align-items: flex-end; padding: 10px 18px; border-top: 1px solid var(--line); background: var(--panel); }
 .output { margin: 0; max-height: 46vh; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; font: 12.5px/1.5 var(--mono); white-space: pre-wrap; }
 .output.bad { border-color: var(--danger); }
+
+/* ---------- worktrees sin tarea ---------- */
+.plain { list-style: none; margin: 0; padding: 0; }
+.orphans .orphan { display: flex; flex-direction: column; gap: 2px; padding: 6px 2px; border-bottom: 1px solid var(--line); }
+.orphans .orphan .mono { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orphans .link-btn { align-self: flex-start; }

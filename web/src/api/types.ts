@@ -96,3 +96,10 @@ export interface FileDiff {
   unstaged: string;
   truncated: boolean;
 }
+
+export interface OrphanWorktree {
+  repoId: string;
+  key: string;
+  path: string;
+  branch?: string;
+}

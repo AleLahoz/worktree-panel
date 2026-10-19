@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "./api/client";
-import type { AppConfig, DocInfo, EnvCheck, Repo, TaskView } from "./api/types";
+import type { AppConfig, DocInfo, EnvCheck, OrphanWorktree, Repo, TaskView } from "./api/types";
+import { ImportModal } from "./components/ImportModal";
 import { DocsPanel } from "./components/DocsPanel";
 import { DropOverlay } from "./components/DropOverlay";
 import { GitPanel } from "./components/GitPanel";
@@ -40,6 +41,10 @@ export function App() {
   /** Al incrementarlo, la terminal de Claude recupera el foco (tras insertar texto desde la UI). */
   const [focusClaude, setFocusClaude] = useState(0);
   const [pushResult, setPushResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [orphans, setOrphans] = useState<OrphanWorktree[]>([]);
+  const [importing, setImporting] = useState<OrphanWorktree | null>(null);
+  /** Estado previo de la sesión de cada tarea, para avisar solo cuando pasa a "Esperando". */
+  const prevStates = useRef(new Map<string, string>());
   const dragDepth = useRef(0);
   const filterRef = useRef<HTMLInputElement>(null);
 
@@ -56,6 +61,10 @@ export function App() {
     } finally {
       setLoaded(true);
     }
+  }, []);
+
+  const refreshOrphans = useCallback(() => {
+    api.reconcile().then((r) => setOrphans(r.orphans)).catch(() => {});
   }, []);
 
   const refreshDocs = useCallback(async () => {
@@ -75,9 +84,40 @@ export function App() {
   useEffect(() => {
     refresh();
     loadEnv();
+    refreshOrphans();
     const id = window.setInterval(refresh, 5000);
-    return () => window.clearInterval(id);
-  }, [refresh, loadEnv]);
+    const slow = window.setInterval(refreshOrphans, 15_000);
+    return () => {
+      window.clearInterval(id);
+      window.clearInterval(slow);
+    };
+  }, [refresh, loadEnv, refreshOrphans]);
+
+  // Aviso del navegador cuando una tarea pasa a "Esperando" y no es la que se está viendo.
+  useEffect(() => {
+    const prev = prevStates.current;
+    for (const t of tasks) {
+      const before = prev.get(t.id);
+      const now = t.session.claude;
+      const watching = t.id === selectedId && document.visibilityState === "visible";
+      if (before && before !== "waiting" && now === "waiting" && !watching && "Notification" in window && Notification.permission === "granted") {
+        const n = new Notification(`${t.key} espera tu respuesta`, { body: t.title ?? t.branch, tag: `wtp-${t.id}` });
+        n.onclick = () => {
+          window.focus();
+          setSelectedId(t.id);
+          setTab("claude");
+          n.close();
+        };
+      }
+      prev.set(t.id, now);
+    }
+  }, [tasks, selectedId]);
+
+  // El título de la pestaña indica cuántas tareas esperan una respuesta.
+  useEffect(() => {
+    const waiting = tasks.filter((t) => t.session.claude === "waiting").length;
+    document.title = waiting ? `(${waiting}) Worktree Panel` : "Worktree Panel";
+  }, [tasks]);
 
   useEffect(() => {
     setDocs([]);
@@ -253,6 +293,8 @@ export function App() {
         onNew={() => (repos.length ? setModal("new") : setModal("settings"))}
         onSettings={() => setModal("settings")}
         filterRef={filterRef}
+        orphans={orphans}
+        onImport={setImporting}
       />
 
       <main className="main" {...dragProps}>
@@ -378,6 +420,21 @@ export function App() {
             </div>
           </div>
         </Modal>
+      )}
+
+      {importing && repos.find((r) => r.id === importing.repoId) && (
+        <ImportModal
+          orphan={importing}
+          repo={repos.find((r) => r.id === importing.repoId)!}
+          onClose={() => setImporting(null)}
+          onImported={async (id) => {
+            setImporting(null);
+            await refresh();
+            refreshOrphans();
+            setSelectedId(id);
+            setTab("claude");
+          }}
+        />
       )}
 
       {modal === "new" && (
